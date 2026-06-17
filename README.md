@@ -34,9 +34,11 @@ You can run it yourself by following this tutorial in 1-2 hours (in German at th
 
 ### Screenshots
 
-![grafic1](Screenshot3min_FM.jpg)
+![grafic1](Screenshot1hide_DB.jpg)
 
 ![grafic2](Screenshot1max_DB.jpg)
+
+![grafic1](Screenshot3min_FM.jpg)
 
 ![grafic3](Screenshot4print_preview.jpg)
 
