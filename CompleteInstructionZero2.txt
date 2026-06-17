@@ -482,55 +482,7 @@ export default function Index() {
 </div>
 
 
-      {/* Mariner2: Dynamische Modell-Vorschau oberhalb des Druckerstatus (Nur wenn gedruckt/pausiert wird) */}
-      {!isLoading && !error && (status === "printing" || status === "paused") && job?.fileName && (
-        <div className="preview-wrapper-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px', width: '100%' }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            width: '1296px',
-            maxWidth: '100%',
-            backgroundColor: '#111',
-            padding: '6px 12px',
-            borderRadius: '6px 6px 0 0',
-            border: '2px solid #222',
-            borderBottom: 'none',
-            boxSizing: 'border-box'
-          }}>
-            <div style={{ fontSize: '13px', color: '#aaa', fontWeight: 'bold' }}>
-              Modell-Vorschau: <span style={{ color: '#00b4d8' }}>{job.fileName}</span>
-            </div>
-          </div>
-
-          <div style={{
-            width: '1296px',
-            maxWidth: '100%',     
-            height: '350px', 
-            overflow: 'hidden', 
-            borderRadius: '0 0 8px 8px',
-            border: '2px solid #222',
-            boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
-            backgroundColor: '#111',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}>
-            <img 
-              src={`/api/file_preview/${encodeURIComponent(job.fileName)}`} 
-              alt="3D Modell Vorschau"
-              style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block' }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                const parent = e.currentTarget.parentElement;
-                if (parent) { parent.innerHTML = '<div style="color: #666; font-size: 14px;">Keine Vorschau im Cache verfügbar</div>'; }
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Reguläre Drucker-Steuerungskarten werden nur gerendert, wenn kein Verbindungs- oder Ladefehler vorliegt */}
+      {/* 1. STATUS */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center rounded-lg border bg-card px-6 py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -586,9 +538,58 @@ export default function Index() {
           )}
         </div>
       )}
+
+      {/* 2. MODEL-Preview */}
+      {!isLoading && !error && (status === "printing" || status === "paused") && job?.fileName && (
+        <div className="preview-wrapper-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '24px', marginBottom: '16px', width: '100%' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            width: '1296px',
+            maxWidth: '100%',
+            backgroundColor: '#111',
+            padding: '6px 12px',
+            borderRadius: '6px 6px 0 0',
+            border: '2px solid #222',
+            borderBottom: 'none',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{ fontSize: '13px', color: '#aaa', fontWeight: 'bold' }}>
+              Model-Preview: <span style={{ color: '#00b4d8' }}>{job.fileName}</span>
+            </div>
+          </div>
+
+          <div style={{
+            width: '1296px',
+            maxWidth: '100%',     
+            height: '350px', 
+            overflow: 'hidden', 
+            borderRadius: '0 0 8px 8px',
+            border: '2px solid #222',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
+            backgroundColor: '#111',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <img 
+              src={api.filePreviewUrl(job.fileName)}
+              alt="Layer preview"
+              style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block' }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent) { parent.innerHTML = '<div style="color: #666; font-size: 14px;">No Layer preview available</div>'; }
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 #######################################################################################################################
 #####
