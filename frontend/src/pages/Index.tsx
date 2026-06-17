@@ -206,13 +206,13 @@ export default function Index() {
             alignItems: 'center'
           }}>
             <img 
-              src={`/api/file_preview/${encodeURIComponent(job.fileName)}`} 
-              alt="3D Modell Vorschau"
+              src={api.filePreviewUrl(job.fileName)}
+              alt="3D Model Preview"
               style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block' }}
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
                 const parent = e.currentTarget.parentElement;
-                if (parent) { parent.innerHTML = '<div style="color: #666; font-size: 14px;">Keine Vorschau im Cache verfügbar</div>'; }
+                if (parent) { parent.innerHTML = '<div style="color: #666; font-size: 14px;">No preview available</div>'; }
               }}
             />
           </div>
