@@ -17,7 +17,7 @@ def _read_bmp280_temperature() -> tuple[Optional[float], Optional[str]]:
 
     try:
         i2c = busio.I2C(board.SCL, board.SDA)
-        sensor = adafruit_bmp280.Adafruit_BMP280_I2C(i2c)
+        sensor = adafruit_bmp280.Adafruit_BMP280_I2C(i2c, address=0x76)
         return float(sensor.temperature), None
     except Exception as exc:
         return None, f"bmp280-read-failed: {exc}"

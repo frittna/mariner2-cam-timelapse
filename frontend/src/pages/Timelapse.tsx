@@ -40,7 +40,7 @@ export default function Timelapse() {
   const { data: bmp280 } = useQuery({
     queryKey: ["bmp280"],
     queryFn: api.bmp280Temperature,
-    refetchInterval: 60000,
+    refetchInterval: 30000,
   });
 
   const setProfileMutation = useMutation({
