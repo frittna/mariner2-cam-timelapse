@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Printer, FolderOpen } from "lucide-react";
+import { Printer, FolderOpen, Film } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { PowerMenu } from "@/components/PowerMenu";
@@ -8,6 +8,7 @@ import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 const navItems = [
   { to: "/", label: "Dashboard", icon: Printer },
   { to: "/files", label: "Files", icon: FolderOpen },
+  { to: "/timelapse", label: "Timelapse", icon: Film },
 ];
 
 function getTempColor(temp: number | null | undefined): string {

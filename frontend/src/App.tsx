@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppNav } from "@/components/AppNav";
 import Index from "./pages/Index";
 import Files from "./pages/Files";
+import Timelapse from "./pages/Timelapse";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +22,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/files" element={<Files />} />
+            <Route path="/timelapse" element={<Timelapse />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
