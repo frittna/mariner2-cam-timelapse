@@ -512,3 +512,15 @@ class MarinerServerTest(TestCase):
                 supported_extensions=ANY,
             )
         expect(response.status_code).to_equal(200)
+
+    def test_bmp280_sensor_fallback(self) -> None:
+        response = self.client.get("/api/sensors/bmp280")
+        expect(response.status_code).to_equal(200)
+        expect(response.get_json()["ok"]).to_equal(False)
+
+    def test_timelapse_status_endpoint(self) -> None:
+        response = self.client.get("/api/timelapse/status")
+        expect(response.status_code).to_equal(200)
+        body = response.get_json()
+        expect(body["ready"]).to_equal(True)
+        expect("z_detector_running" in body).to_equal(True)
