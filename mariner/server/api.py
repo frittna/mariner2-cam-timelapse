@@ -326,7 +326,8 @@ def upload_file() -> Union[str, Response]:
         abort(400)
 
     file.save(str(dest_path))
-    os.sync()
+    if hasattr(os, "sync"):
+        os.sync()
     return jsonify({"success": True})
 
 
