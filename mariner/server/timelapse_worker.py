@@ -11,9 +11,9 @@ from mariner.server.timelapse_manager import SESSIONS_DIR
 logger = logging.getLogger(__name__)
 
 PROFILE_TO_STREAM = {
-    "HIGH": "cam_high",
-    "MID": "cam_mid",
-    "LOW": "cam_low",
+    "HIGH": "cam",
+    "MID": "cam",
+    "LOW": "cam",
 }
 
 
