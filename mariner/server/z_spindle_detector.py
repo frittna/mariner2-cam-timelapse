@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+from datetime import datetime
 from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,9 @@ class ZSpindleDetector:
         self._thread: Optional[threading.Thread] = None
         self._last_state: tuple[bool, bool] = (False, False)
         self._last_trigger = 0.0
+        self._top_event_count = 0
+        self._last_top_detected_at: Optional[float] = None
+        self._last_event_simulated = False
 
     @property
     def is_running(self) -> bool:
@@ -99,7 +103,30 @@ class ZSpindleDetector:
         # (0,0)->(1,0)->(1,1). We trigger on entering (1,1) from a different state.
         return old_state != (True, True) and new_state == (True, True)
 
-    def _trigger(self) -> None:
+    def get_status(self) -> dict:
+        sensor_a, sensor_b = self._read_state()
+        return {
+            "running": self.is_running,
+            "gpio_available": GPIO is not None,
+            "sensor_a": sensor_a,
+            "sensor_b": sensor_b,
+            "top_event_count": self._top_event_count,
+            "last_top_detected_at": (
+                datetime.fromtimestamp(self._last_top_detected_at).isoformat()
+                if self._last_top_detected_at is not None
+                else None
+            ),
+            "last_event_simulated": self._last_event_simulated,
+        }
+
+    def trigger_test_event(self) -> bool:
+        self._trigger(simulated=True)
+        return True
+
+    def _trigger(self, simulated: bool = False) -> None:
+        self._top_event_count += 1
+        self._last_top_detected_at = time.time()
+        self._last_event_simulated = simulated
         self._set_led(True)
         try:
             if self.on_top_detected:

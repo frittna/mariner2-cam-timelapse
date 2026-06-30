@@ -5,21 +5,25 @@ from typing import Optional
 from flask import Blueprint, jsonify, request, send_file
 
 from mariner.server.timelapse_manager import TimelapseManager
-from mariner.server.timelapse_worker import TimelapseWorker
+from mariner.server.timelapse_worker import PROFILE_TO_STREAM, TimelapseWorker
 from mariner.server.z_spindle_detector import ZSpindleDetector
 
 timelapse_bp = Blueprint("timelapse", __name__, url_prefix="/api/timelapse")
 
 _timelapse_worker: Optional[TimelapseWorker] = None
 _z_detector: Optional[ZSpindleDetector] = None
+_startup_profile = "HIGH"
 
 
 def init_timelapse() -> None:
-    global _timelapse_worker, _z_detector
+    global _timelapse_worker, _z_detector, _startup_profile
     if _timelapse_worker is not None:
         return
 
-    profile = os.getenv("MARINER_TIMELAPSE_PROFILE", "HIGH").upper()
+    configured_profile = os.getenv("MARINER_TIMELAPSE_PROFILE", "HIGH").upper()
+    profile = TimelapseManager.get_selected_profile(configured_profile)
+    _startup_profile = profile
+
     _timelapse_worker = TimelapseWorker(stream_profile=profile)
     _z_detector = ZSpindleDetector(on_top_detected=_timelapse_worker.capture_frame)
     if _z_detector.setup():
@@ -30,14 +34,18 @@ def init_timelapse() -> None:
 def status():
     worker = _timelapse_worker
     detector = _z_detector
+    detector_status = detector.get_status() if detector else None
     return jsonify(
         {
             "ready": worker is not None,
             "recording": bool(worker and worker.is_recording),
             "session_id": worker.current_session_id if worker else None,
+            "last_session_id": worker.last_session_id if worker else None,
             "frame_count": worker.frame_counter if worker else 0,
             "z_detector_running": detector.is_running if detector else False,
             "stream_profile": worker.stream_profile if worker else "HIGH",
+            "restart_required": bool(worker and worker.stream_profile != _startup_profile),
+            "detector": detector_status,
         }
     )
 
@@ -144,6 +152,9 @@ def profiles():
         {
             "active": worker.stream_profile,
             "available": ["HIGH", "MID", "LOW"],
+            "restart_required": worker.stream_profile != _startup_profile,
+            "stream_path": PROFILE_TO_STREAM.get(worker.stream_profile, "cam"),
+            "note": "Only one global cam stream is used. Change MediaMTX and restart services to apply quality changes.",
         }
     )
 
@@ -153,8 +164,36 @@ def set_profile(profile: str):
     worker = _timelapse_worker
     if worker is None:
         return jsonify({"error": "Timelapse not initialized"}), 503
+
     current = worker.set_profile(profile.upper())
-    return jsonify({"active": current})
+    TimelapseManager.set_selected_profile(current)
+
+    return jsonify(
+        {
+            "active": current,
+            "available": ["HIGH", "MID", "LOW"],
+            "restart_required": current != _startup_profile,
+            "stream_path": PROFILE_TO_STREAM.get(current, "cam"),
+            "note": "MediaMTX cam profile after restart must match the selected quality.",
+        }
+    )
+
+
+@timelapse_bp.post("/test-trigger")
+def test_trigger():
+    detector = _z_detector
+    worker = _timelapse_worker
+    if detector is None or worker is None:
+        return jsonify({"error": "Timelapse not initialized"}), 503
+
+    detector.trigger_test_event()
+    return jsonify(
+        {
+            "status": "triggered",
+            "capture_queued": bool(worker.is_recording),
+            "detector": detector.get_status(),
+        }
+    )
 
 
 @timelapse_bp.post("/storage/fifo")

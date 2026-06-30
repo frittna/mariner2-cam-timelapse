@@ -58,7 +58,39 @@ export interface TimelapseRenderResponse {
   frame_count: number;
   fps: number;
   preset: string;
+  capture_profile?: "HIGH" | "MID" | "LOW";
+  stream_path?: string;
   created_at: string;
+}
+
+export interface TimelapseDetectorStatus {
+  running: boolean;
+  gpio_available: boolean;
+  sensor_a: boolean;
+  sensor_b: boolean;
+  top_event_count: number;
+  last_top_detected_at: string | null;
+  last_event_simulated: boolean;
+}
+
+export interface TimelapseStatusResponse {
+  ready: boolean;
+  recording: boolean;
+  session_id: string | null;
+  last_session_id: string | null;
+  frame_count: number;
+  z_detector_running: boolean;
+  stream_profile: "HIGH" | "MID" | "LOW";
+  restart_required: boolean;
+  detector: TimelapseDetectorStatus | null;
+}
+
+export interface TimelapseProfilesResponse {
+  active: "HIGH" | "MID" | "LOW";
+  available: Array<"HIGH" | "MID" | "LOW">;
+  restart_required: boolean;
+  stream_path: string;
+  note: string;
 }
 
 function getCsrfToken(): string | null {
@@ -176,26 +208,50 @@ export const api = {
     });
   },
 
-  async timelapseStatus(): Promise<{
-    ready: boolean;
-    recording: boolean;
-    session_id: string | null;
-    frame_count: number;
-    z_detector_running: boolean;
-    stream_profile: "HIGH" | "MID" | "LOW";
-  }> {
-    return apiFetch("/api/timelapse/status");
+  async timelapseStatus(): Promise<TimelapseStatusResponse> {
+    return apiFetch<TimelapseStatusResponse>("/api/timelapse/status");
   },
 
-  async timelapseProfiles(): Promise<{
-    active: "HIGH" | "MID" | "LOW";
-    available: Array<"HIGH" | "MID" | "LOW">;
-  }> {
-    return apiFetch("/api/timelapse/profiles");
+  async timelapseProfiles(): Promise<TimelapseProfilesResponse> {
+    return apiFetch<TimelapseProfilesResponse>("/api/timelapse/profiles");
   },
 
-  async timelapseSetProfile(profile: "HIGH" | "MID" | "LOW"): Promise<void> {
-    await apiFetch(`/api/timelapse/profiles/${profile}`, { method: "POST" });
+  async timelapseSetProfile(
+    profile: "HIGH" | "MID" | "LOW",
+  ): Promise<TimelapseProfilesResponse> {
+    return apiFetch<TimelapseProfilesResponse>(`/api/timelapse/profiles/${profile}`, {
+      method: "POST",
+    });
+  },
+
+  async timelapseStartSession(
+    sessionId?: string,
+  ): Promise<{ status: string; session_id: string }> {
+    return apiFetch("/api/timelapse/session/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sessionId ? { session_id: sessionId } : {}),
+    });
+  },
+
+  async timelapseEndSession(): Promise<{
+    status: string;
+    session_id: string;
+    videos?: TimelapseVideoEntry[];
+  }> {
+    return apiFetch("/api/timelapse/session/end", { method: "POST" });
+  },
+
+  async timelapseCapture(): Promise<{ status: string }> {
+    return apiFetch("/api/timelapse/capture", { method: "POST" });
+  },
+
+  async timelapseTestTrigger(): Promise<{
+    status: string;
+    capture_queued: boolean;
+    detector: TimelapseDetectorStatus;
+  }> {
+    return apiFetch("/api/timelapse/test-trigger", { method: "POST" });
   },
 
   async bmp280Temperature(): Promise<{

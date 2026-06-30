@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 from datetime import datetime
@@ -7,6 +8,7 @@ from typing import Dict, Optional, Tuple
 BASE_DIR = Path("/var/tmp/mariner_timelapse")
 SESSIONS_DIR = BASE_DIR / "sessions"
 VIDEOS_DIR = BASE_DIR / "videos"
+SETTINGS_FILE = BASE_DIR / "settings.json"
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -32,6 +34,53 @@ class TimelapseManager:
                 }
             )
         return output
+
+    @staticmethod
+    def load_settings() -> dict:
+        if not SETTINGS_FILE.exists():
+            return {}
+        try:
+            return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+
+    @staticmethod
+    def save_settings(settings: dict) -> dict:
+        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SETTINGS_FILE.write_text(json.dumps(settings, indent=2, sort_keys=True), encoding="utf-8")
+        return settings
+
+    @classmethod
+    def get_selected_profile(cls, default: str = "HIGH") -> str:
+        profile = str(cls.load_settings().get("profile", default)).upper()
+        return profile if profile in {"HIGH", "MID", "LOW"} else default
+
+    @classmethod
+    def set_selected_profile(cls, profile: str) -> str:
+        normalized = profile.upper()
+        if normalized not in {"HIGH", "MID", "LOW"}:
+            normalized = "HIGH"
+        cls.save_settings({"profile": normalized})
+        return normalized
+
+    @staticmethod
+    def write_session_metadata(session_id: str, metadata: dict) -> None:
+        session_dir = SESSIONS_DIR / session_id
+        session_dir.mkdir(parents=True, exist_ok=True)
+        (session_dir / "session.json").write_text(
+            json.dumps(metadata, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def read_session_metadata(session_id: str) -> dict:
+        metadata_path = SESSIONS_DIR / session_id / "session.json"
+        if not metadata_path.exists():
+            return {}
+        try:
+            return json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
 
     @staticmethod
     def check_disk_space(min_free_gb: float = 1.0) -> Tuple[bool, dict]:
@@ -64,6 +113,7 @@ class TimelapseManager:
         if preset not in cls.RENDER_PRESETS:
             preset = "normal_30fps"
         preset_data = cls.RENDER_PRESETS[preset]
+        session_metadata = cls.read_session_metadata(session_id)
 
         if not output_name:
             output_name = f"timelapse_{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -100,6 +150,8 @@ class TimelapseManager:
             "frame_count": frame_count,
             "fps": int(preset_data["fps"]),
             "preset": preset,
+            "capture_profile": session_metadata.get("stream_profile"),
+            "stream_path": session_metadata.get("stream_path"),
             "created_at": datetime.now().isoformat(),
         }
 

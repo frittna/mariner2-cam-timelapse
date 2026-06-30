@@ -524,3 +524,20 @@ class MarinerServerTest(TestCase):
         body = response.get_json()
         expect(body["ready"]).to_equal(True)
         expect("z_detector_running" in body).to_equal(True)
+        expect("detector" in body).to_equal(True)
+
+    def test_timelapse_profiles_endpoint(self) -> None:
+        response = self.client.get("/api/timelapse/profiles")
+        expect(response.status_code).to_equal(200)
+        body = response.get_json()
+        expect(body["active"]).to_equal("HIGH")
+        expect(body["stream_path"]).to_equal("cam")
+
+    def test_timelapse_test_trigger_endpoint(self) -> None:
+        response = self.client.post("/api/timelapse/test-trigger")
+        expect(response.status_code).to_equal(200)
+        body = response.get_json()
+        expect(body["status"]).to_equal("triggered")
+        expect("detector" in body).to_equal(True)
+
+

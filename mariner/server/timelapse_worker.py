@@ -3,10 +3,11 @@ import re
 import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from mariner.server.timelapse_manager import SESSIONS_DIR
+from mariner.server.timelapse_manager import SESSIONS_DIR, TimelapseManager
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class TimelapseWorker:
         self.mediamtx_port = mediamtx_port
         self.stream_profile = stream_profile if stream_profile in PROFILE_TO_STREAM else "HIGH"
         self.current_session_id: Optional[str] = None
+        self.last_session_id: Optional[str] = None
         self.frame_counter = 0
         self.is_recording = False
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="timelapse")
@@ -52,8 +54,18 @@ class TimelapseWorker:
                 return None
             (SESSIONS_DIR / cleaned).mkdir(parents=True, exist_ok=True)
             self.current_session_id = cleaned
+            self.last_session_id = cleaned
             self.frame_counter = 0
             self.is_recording = True
+            TimelapseManager.write_session_metadata(
+                cleaned,
+                {
+                    "session_id": cleaned,
+                    "started_at": datetime.now().isoformat(),
+                    "stream_profile": self.stream_profile,
+                    "stream_path": PROFILE_TO_STREAM.get(self.stream_profile, PROFILE_TO_STREAM["HIGH"]),
+                },
+            )
         return cleaned
 
     def end_session(self) -> Optional[Path]:
@@ -64,6 +76,7 @@ class TimelapseWorker:
             self.is_recording = False
             self.current_session_id = None
             self.frame_counter = 0
+            self.last_session_id = session_id
             return SESSIONS_DIR / session_id
 
     def capture_frame(self) -> bool:
