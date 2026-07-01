@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+﻿import { Link, useLocation } from "react-router-dom";
 import { Printer, FolderOpen, Film } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -22,23 +22,21 @@ function getTempColor(temp: number | null | undefined): string {
 export function AppNav() {
   const location = useLocation();
 
-  // DHT22 sensor polling every 60s
   const { data: sensorData } = useQuery({
-    queryKey: ["dht22"],
+    queryKey: ["bmp280-nav"],
     queryFn: async () => {
       try {
-        const res = await fetch("/api/sensors/dht22");
+        const res = await fetch("/api/sensors/bmp280");
         return res.json();
       } catch (e) {
         return { ok: false };
       }
     },
-    refetchInterval: 60000,
+    refetchInterval: 30000,
     staleTime: 30000,
   });
 
   const tempC = sensorData?.ok ? sensorData.temp_c : null;
-  const humPct = sensorData?.ok ? sensorData.hum_pct : null;
 
   return (
     <header className="sticky top-0 z-40 border-b bg-card/80 backdrop-blur-sm">
@@ -71,17 +69,11 @@ export function AppNav() {
               </Link>
             );
           })}
-          
-          {/* DHT22 Sensor Badge */}
+
           <div className="ml-2 flex items-center gap-2 border-l border-border pl-2 text-xs">
-            <div className="flex flex-col items-end gap-0.5">
-              <span className={cn("font-semibold", getTempColor(tempC))}>
-                {tempC != null ? `${tempC.toFixed(1)}°C` : "—.-°C"}
-              </span>
-              <span className="text-muted-foreground">
-                {humPct != null ? `${humPct.toFixed(0)}%` : "—%"}
-              </span>
-            </div>
+            <span className={cn("font-semibold", getTempColor(tempC))}>
+              {tempC != null ? `${tempC.toFixed(1)} C` : "-- C"}
+            </span>
           </div>
 
           <div className="ml-1 flex items-center gap-0.5 border-l border-border pl-1">
