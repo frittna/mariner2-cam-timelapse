@@ -1,7 +1,9 @@
+﻿import json
 import logging
 import re
 import subprocess
 import threading
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
@@ -10,19 +12,23 @@ from mariner.server.timelapse_manager import SESSIONS_DIR
 
 logger = logging.getLogger(__name__)
 
-# All profiles use the single "cam" MediaMTX path.
-# The Pi camera (rpiCamera source) can only run as one stream at a time -
-# parallel streams are not possible. Switch profiles by editing mediamtx.yml
-# and restarting mediamtx + mariner3d.
+# Die Pi-Kamera (rpiCamera) kann nur einen Stream gleichzeitig liefern.
+# Profile werden per MediaMTX-API dynamisch umgeschaltet (api: yes noetig).
 #
-# Profile reference (configure in /etc/mediamtx/mediamtx.yml -> paths -> cam):
-#   HIGH : 1296x972,  30 fps, 4000000 bit/s  -- best quality, needs fast SD
-#   MID  : 1280x720,  25 fps, 2000000 bit/s  -- balanced, recommended default
-#   LOW  :  640x480,  15 fps,  800000 bit/s  -- lowest load, small files
+# Profil-Referenz (Resolution x Hoehe, FPS, Bitrate):
+#   HIGH : 1296x972,  30 fps, 4000000 bit/s  -- beste Qualitaet, braucht schnelle SD
+#   MID  : 1280x720,  20 fps, 2000000 bit/s  -- ausgewogen, empfohlener Standard
+#   LOW  :  640x480,  15 fps,  800000 bit/s  -- niedrigste Last, kleinste Dateien
+PROFILE_SETTINGS = {
+    "HIGH": {"rpiCameraWidth": 1296, "rpiCameraHeight": 972,  "rpiCameraFps": 30, "rpiCameraBitRate": 4000000},
+    "MID":  {"rpiCameraWidth": 1280, "rpiCameraHeight": 720,  "rpiCameraFps": 20, "rpiCameraBitRate": 2000000},
+    "LOW":  {"rpiCameraWidth": 640,  "rpiCameraHeight": 480,  "rpiCameraFps": 15, "rpiCameraBitRate": 800000},
+}
+
 PROFILE_TO_STREAM = {
     "HIGH": "cam",
-    "MID": "cam",
-    "LOW": "cam",
+    "MID":  "cam",
+    "LOW":  "cam",
 }
 
 
@@ -49,7 +55,21 @@ class TimelapseWorker:
         with self._lock:
             if profile in PROFILE_TO_STREAM:
                 self.stream_profile = profile
+                self._apply_profile_to_mediamtx(profile)
             return self.stream_profile
+
+    def _apply_profile_to_mediamtx(self, profile: str) -> None:
+        """Sendet die Profil-Einstellungen per PATCH an die MediaMTX-API (api: yes erforderlich)."""
+        settings = PROFILE_SETTINGS.get(profile, PROFILE_SETTINGS["HIGH"])
+        api_url = f"http://{self.mediamtx_host}:9997/v3/config/paths/edit/cam"
+        try:
+            data = json.dumps(settings).encode()
+            req = urllib.request.Request(api_url, data=data, method="PATCH")
+            req.add_header("Content-Type", "application/json")
+            urllib.request.urlopen(req, timeout=3)
+            logger.info("MediaMTX profile updated to %s", profile)
+        except Exception as exc:
+            logger.warning("MediaMTX profile update failed: %s", exc)
 
     def start_session(self, session_id: str) -> Optional[str]:
         cleaned = self._sanitize_session_id(session_id)
