@@ -192,14 +192,15 @@ def set_profile(profile: str):
     )
 
 
-@timelapse_bp.post("/detector/invert")
+@timelapse_bp.route("/detector/invert", methods=["GET", "POST"])
 def set_detector_invert():
     detector = _z_detector
     if detector is None:
         return jsonify({"error": "Timelapse not initialized"}), 503
 
     payload = request.get_json(silent=True) or {}
-    invert = bool(payload.get("invert"))
+    invert_value = payload.get("invert", request.args.get("invert", False))
+    invert = str(invert_value).strip().lower() in {"1", "true", "yes", "on"}
     sensor = "B" if invert else "A"
     detector.set_top_entry_sensor(sensor)
     TimelapseManager.set_z_top_entry_sensor(sensor)
@@ -228,3 +229,4 @@ def run_fifo():
     payload = request.get_json(silent=True) or {}
     max_storage_mb = int(payload.get("max_storage_mb", 2048))
     return jsonify(TimelapseManager.enforce_fifo(max_storage_mb=max_storage_mb))
+

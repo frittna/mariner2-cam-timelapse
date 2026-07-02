@@ -1,10 +1,12 @@
-﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+﻿import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Film, Loader2, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
 import { useTemperatureUnit } from "@/hooks/use-temperature-unit";
 import { api } from "@/lib/api";
+import { applyTheme, getStoredThemeId, themes } from "@/lib/themes";
 import {
   formatTemperature,
   getTemperatureColorClass,
@@ -25,14 +27,15 @@ const unitOptions: Array<{ value: TemperatureUnit; label: string }> = [
 
 const tempBands = [
   { label: "Cool", range: "Below 20 °C", sample: 18 },
-  { label: "Normal", range: "20-37 °C", sample: 27 },
-  { label: "Hot", range: "37-42 °C", sample: 39 },
-  { label: "Alert", range: "Above 42 °C", sample: 43 },
+  { label: "Normal", range: "20-35 °C", sample: 25 },
+  { label: "Hot", range: "35-40 °C", sample: 36 },
+  { label: "Alert", range: "Above 40 °C", sample: 43 },
 ];
 
 export default function Timelapse() {
   const queryClient = useQueryClient();
   const { unit, setUnit } = useTemperatureUnit();
+  const [activeThemeId, setActiveThemeId] = useState(getStoredThemeId);
 
   const { data: status } = useQuery({
     queryKey: ["timelapse-status"],
@@ -162,6 +165,10 @@ export default function Timelapse() {
     return value ? "HIGH" : "LOW";
   }
 
+  useEffect(() => {
+    applyTheme(activeThemeId);
+  }, [activeThemeId]);
+
   const tempC = bmp280?.ok ? bmp280.temp_c : null;
 
   return (
@@ -175,7 +182,7 @@ export default function Timelapse() {
 
       <div className="rounded-lg border bg-card p-4 space-y-4">
         <div>
-          <div className="text-sm font-medium">Global camera settings (cam)</div>
+          <div className="text-sm font-medium">Global Camera Settings</div>
           <p className="text-xs text-muted-foreground">
             The selected profile is applied live through the MediaMTX API.
           </p>
@@ -263,7 +270,7 @@ export default function Timelapse() {
       </div>
 
       <div className="rounded-lg border bg-card p-4 space-y-3">
-        <div className="text-sm font-medium">Video rendering</div>
+        <div className="text-sm font-medium">Video Rendering</div>
         <div className="flex flex-wrap gap-2">
           {RENDER_PRESETS.map((preset) => (
             <Button
@@ -311,7 +318,7 @@ export default function Timelapse() {
             onClick={() => setDetectorInvertMutation.mutate(!(detector?.invert ?? false))}
             disabled={setDetectorInvertMutation.isPending}
             className={cn(
-              "ml-auto inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
+              "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
               detector?.invert
                 ? "border-primary/40 bg-primary/10 text-primary"
                 : "border-border bg-background text-muted-foreground",
@@ -327,8 +334,8 @@ export default function Timelapse() {
             >
               <span
                 className={cn(
-                  "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
-                  detector?.invert ? "translate-x-4" : "translate-x-0.5",
+                  "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+                   detector?.invert ? "translate-x-4" : "translate-x-0",
                 )}
               />
             </span>
@@ -340,7 +347,7 @@ export default function Timelapse() {
 
         <div className="border-t border-border/60 pt-4 space-y-3">
           <div>
-            <div className="text-sm font-medium">Temperature display</div>
+            <div className="text-sm font-medium">Temperature Display</div>
             <p className="text-xs text-muted-foreground">
               Choose how temperatures are shown in the navbar and sensor readout.
             </p>
@@ -372,6 +379,33 @@ export default function Timelapse() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="border-t border-border/60 pt-4 space-y-3">
+            <div>
+              <div className="text-sm font-medium">UI colors</div>
+              <p className="text-xs text-muted-foreground">
+                Customize the accent colors for the UI elements.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {themes.map((theme) => (
+                <button
+                  key={theme.id}
+                  type="button"
+                  onClick={() => setActiveThemeId(theme.id)}
+                  className={cn(
+                    "h-9 w-9 rounded-full border transition-colors",
+                    activeThemeId === theme.id
+                      ? "border-primary ring-2 ring-primary/30"
+                      : "border-border/60 hover:border-border",
+                  )}
+                  style={{ backgroundColor: theme.accent }}
+                  aria-label={`Select color ${theme.id}`}
+                  aria-pressed={activeThemeId === theme.id}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -424,3 +458,8 @@ export default function Timelapse() {
     </div>
   );
 }
+
+
+
+
+

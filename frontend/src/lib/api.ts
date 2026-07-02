@@ -242,11 +242,11 @@ export const api = {
   async timelapseSetDetectorInvert(
     invert: boolean,
   ): Promise<TimelapseDetectorStatus> {
-    return apiFetch<TimelapseDetectorStatus>("/api/timelapse/detector/invert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ invert }),
-    });
+    const value = invert ? "1" : "0";
+    return apiFetch<TimelapseDetectorStatus>(
+      `/api/timelapse/detector/invert?invert=${value}`,
+      { method: "POST" },
+    );
   },
 
   async timelapseStartSession(
@@ -325,3 +325,4 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
