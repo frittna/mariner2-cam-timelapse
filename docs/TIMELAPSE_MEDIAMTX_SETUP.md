@@ -76,15 +76,21 @@ are migrated automatically when present.
 
 ## Z-top detection
 
-The detector now uses a directional transition into `(True, True)` instead of triggering on every `(True, True)` state.
+The detector uses a **4-state quadrature sequence**. This requires two sensors mounted slightly offset (~140-160 deg apart around the spindle) and a single narrow bright marker per revolution.
 
-Default top-entry mode:
+### Normal mode (sensor A enters first)
 
-- sensor A enters first: `(True, False) -> (True, True)`
+```
+(F,F) -> (T,F) -> (T,T) -> (F,T) -> (F,F)  -- top detected
+```
 
-Inverted mode:
+### Inverted mode (sensor B enters first)
 
-- sensor B enters first: `(False, True) -> (True, True)`
+```
+(F,F) -> (F,T) -> (T,T) -> (T,F) -> (F,F)  -- top detected
+```
+
+The reverse direction of either cycle does **not** trigger. All 4 states must appear in exact order.
 
 The UI exposes this as an **Invert** toggle in the Sensors section.
 
@@ -106,3 +112,4 @@ mariner/server/timelapse_worker.py
 mariner/server/z_spindle_detector.py
 mariner/tests/test_z_spindle_detector.py
 ```
+
