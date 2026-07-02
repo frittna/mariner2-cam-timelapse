@@ -1,4 +1,4 @@
-export type PrinterStatus = "idle" | "printing" | "paused" | "offline";
+﻿export type PrinterStatus = "idle" | "printing" | "paused" | "offline";
 
 export interface PrintStatusResponse {
   state: string;
@@ -71,6 +71,11 @@ export interface TimelapseDetectorStatus {
   top_event_count: number;
   last_top_detected_at: string | null;
   last_event_simulated: boolean;
+  top_entry_sensor: "A" | "B";
+  top_entry_state: boolean[];
+  invert: boolean;
+  last_state: boolean[];
+  last_transition: { from: boolean[]; to: boolean[] } | null;
 }
 
 export interface TimelapseStatusResponse {
@@ -85,11 +90,18 @@ export interface TimelapseStatusResponse {
   detector: TimelapseDetectorStatus | null;
 }
 
+export interface TimelapseProfileDetails {
+  resolution: string;
+  bitrate: string;
+  fps: string;
+}
+
 export interface TimelapseProfilesResponse {
   active: "HIGH" | "MID" | "LOW";
   available: Array<"HIGH" | "MID" | "LOW">;
   restart_required: boolean;
   stream_path: string;
+  profiles: Record<"HIGH" | "MID" | "LOW", TimelapseProfileDetails>;
   note: string;
 }
 
@@ -219,8 +231,21 @@ export const api = {
   async timelapseSetProfile(
     profile: "HIGH" | "MID" | "LOW",
   ): Promise<TimelapseProfilesResponse> {
-    return apiFetch<TimelapseProfilesResponse>(`/api/timelapse/profiles/${profile}`, {
+    return apiFetch<TimelapseProfilesResponse>(
+      `/api/timelapse/profiles/${profile}`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
+  async timelapseSetDetectorInvert(
+    invert: boolean,
+  ): Promise<TimelapseDetectorStatus> {
+    return apiFetch<TimelapseDetectorStatus>("/api/timelapse/detector/invert", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invert }),
     });
   },
 

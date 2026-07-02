@@ -1,37 +1,30 @@
-﻿import { Link, useLocation } from "react-router-dom";
-import { Printer, FolderOpen, Film } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
+﻿import { useQuery } from "@tanstack/react-query";
+import { FolderOpen, Printer, Settings as SettingsIcon } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+
 import { PowerMenu } from "@/components/PowerMenu";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { useTemperatureUnit } from "@/hooks/use-temperature-unit";
+import { api } from "@/lib/api";
+import {
+  formatTemperature,
+  getTemperatureColorClass,
+} from "@/lib/temperature";
+import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: Printer },
   { to: "/files", label: "Files", icon: FolderOpen },
-  { to: "/timelapse", label: "Timelapse", icon: Film },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
-
-function getTempColor(temp: number | null | undefined): string {
-  if (temp == null) return "text-muted-foreground";
-  if (temp < 20) return "text-blue-400";
-  if (temp < 24) return "text-yellow-400";
-  if (temp < 31) return "text-green-400";
-  return "text-red-500";
-}
 
 export function AppNav() {
   const location = useLocation();
+  const { unit } = useTemperatureUnit();
 
   const { data: sensorData } = useQuery({
     queryKey: ["bmp280-nav"],
-    queryFn: async () => {
-      try {
-        const res = await fetch("/api/sensors/bmp280");
-        return res.json();
-      } catch (e) {
-        return { ok: false };
-      }
-    },
+    queryFn: api.bmp280Temperature,
     refetchInterval: 30000,
     staleTime: 30000,
   });
@@ -52,7 +45,9 @@ export function AppNav() {
 
         <nav className="flex items-center gap-1">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.to;
+            const isActive =
+              location.pathname === item.to ||
+              (item.to === "/settings" && location.pathname === "/timelapse");
             return (
               <Link
                 key={item.to}
@@ -71,8 +66,8 @@ export function AppNav() {
           })}
 
           <div className="ml-2 flex items-center gap-2 border-l border-border pl-2 text-xs">
-            <span className={cn("font-semibold", getTempColor(tempC))}>
-              {tempC != null ? `${tempC.toFixed(1)} C` : "-- C"}
+            <span className={cn("font-semibold", getTemperatureColorClass(tempC))}>
+              {formatTemperature(tempC, unit)}
             </span>
           </div>
 

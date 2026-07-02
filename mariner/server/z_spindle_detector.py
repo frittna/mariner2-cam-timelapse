@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import threading
 import time
 from datetime import datetime
@@ -20,15 +20,20 @@ class ZSpindleDetector:
         led_pin: int = 4,
         debounce_ms: int = 120,
         on_top_detected: Optional[Callable[[], None]] = None,
+        top_entry_sensor: str = "A",
     ) -> None:
         self.sensor_a_pin = sensor_a_pin
         self.sensor_b_pin = sensor_b_pin
         self.led_pin = led_pin
         self.debounce_seconds = debounce_ms / 1000.0
         self.on_top_detected = on_top_detected
+        self.top_entry_sensor = (
+            top_entry_sensor.upper() if top_entry_sensor.upper() in {"A", "B"} else "A"
+        )
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._last_state: tuple[bool, bool] = (False, False)
+        self._last_transition: Optional[tuple[tuple[bool, bool], tuple[bool, bool]]] = None
         self._last_trigger = 0.0
         self._top_event_count = 0
         self._last_top_detected_at: Optional[float] = None
@@ -43,8 +48,8 @@ class ZSpindleDetector:
             logger.warning("RPi.GPIO unavailable, Z-spindle detector disabled")
             return False
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.sensor_a_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(self.sensor_b_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.sensor_a_pin, GPIO.IN, pull_up_down=GPIO.PUD_OFF)
+        GPIO.setup(self.sensor_b_pin, GPIO.IN, pull_up_down=GPIO.PUD_OFF)
         GPIO.setup(self.led_pin, GPIO.OUT, initial=GPIO.LOW)
         return True
 
@@ -68,6 +73,13 @@ class ZSpindleDetector:
                 GPIO.cleanup([self.sensor_a_pin, self.sensor_b_pin, self.led_pin])
             except Exception:
                 logger.exception("GPIO cleanup failed")
+
+    def set_top_entry_sensor(self, sensor: str) -> str:
+        normalized = sensor.upper()
+        if normalized not in {"A", "B"}:
+            normalized = "A"
+        self.top_entry_sensor = normalized
+        return self.top_entry_sensor
 
     def _read_state(self) -> tuple[bool, bool]:
         if GPIO is None:
@@ -94,14 +106,17 @@ class ZSpindleDetector:
                 if now - self._last_trigger >= self.debounce_seconds:
                     self._trigger()
                     self._last_trigger = now
+            self._last_transition = (self._last_state, new_state)
             self._last_state = new_state
             time.sleep(0.01)
 
-    @staticmethod
-    def _is_top_event(old_state: tuple[bool, bool], new_state: tuple[bool, bool]) -> bool:
-        # Typical sequence around top with two 180° offset sensors:
-        # (0,0)->(1,0)->(1,1). We trigger on entering (1,1) from a different state.
-        return old_state != (True, True) and new_state == (True, True)
+    def _top_entry_state(self) -> tuple[bool, bool]:
+        return (True, False) if self.top_entry_sensor == "A" else (False, True)
+
+    def _is_top_event(
+        self, old_state: tuple[bool, bool], new_state: tuple[bool, bool]
+    ) -> bool:
+        return old_state == self._top_entry_state() and new_state == (True, True)
 
     def get_status(self) -> dict:
         sensor_a, sensor_b = self._read_state()
@@ -117,6 +132,18 @@ class ZSpindleDetector:
                 else None
             ),
             "last_event_simulated": self._last_event_simulated,
+            "top_entry_sensor": self.top_entry_sensor,
+            "top_entry_state": list(self._top_entry_state()),
+            "invert": self.top_entry_sensor == "B",
+            "last_state": list(self._last_state),
+            "last_transition": (
+                {
+                    "from": list(self._last_transition[0]),
+                    "to": list(self._last_transition[1]),
+                }
+                if self._last_transition is not None
+                else None
+            ),
         }
 
     def trigger_test_event(self) -> bool:

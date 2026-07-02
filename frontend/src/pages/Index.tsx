@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+﻿import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PrintProgress } from "@/components/PrintProgress";
 import { PrintControls } from "@/components/PrintControls";
 import { StatusIndicator } from "@/components/StatusIndicator";
@@ -14,9 +14,9 @@ export default function Index() {
 
   const [camSize, setCamSize] = useState<CamSize>(() => {
     if (typeof window !== 'undefined') {
-      // Nutzt ein eigenes Feld nur für das Dashboard
+      // Keep a separate camera size per page.
       const saved = localStorage.getItem('mariner_cam_size_index') as CamSize;
-      return saved || 'MAX'; // Default beim ersten Mal: MAX
+      return saved || 'MAX';
     }
     return 'MAX';
   });
@@ -31,7 +31,7 @@ export default function Index() {
       const action = size === 'HIDE' ? 'stop' : 'start';
       await fetch(`/api/camera/${action}`, { method: 'POST' });
     } catch (error) {
-      console.error("Fehler beim Umschalten des Kamera-Dienstes im Backend:", error);
+      console.error("Failed to toggle the camera service:", error);
     }
   };
 
@@ -93,7 +93,7 @@ export default function Index() {
         </div>
         <StatusIndicator status={status} />
       </div>
-      {/* Mariner2 HD Live Video Stream mit 4-Stage Toggle Control (MediaMTX) */}
+      {/* Live camera stream controls. */}
       <div className="cam-wrapper-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px', width: '100%' }}>
   
   <div className="cam-control-bar" style={{
@@ -120,7 +120,7 @@ export default function Index() {
         boxShadow: camSize === 'HIDE' ? 'none' : '0 0 8px #22c55e',
         transition: 'background-color 0.3s'
       }} />
-      <span id="db-text">{camSize === 'HIDE' ? 'Cam: DEACTIVATED' : 'Cam: ACTIVE'}</span>
+      <span id="db-text">{camSize === 'HIDE' ? 'Camera: Off' : 'Camera: On'}</span>
     </div>
 
     <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -147,7 +147,7 @@ export default function Index() {
     </div>
   </div>
 
-  {/* Last-Stopp Logik: Wenn camSize 'HIDE' ist, wird das iframe komplett gelöscht */}
+  {/* Remove the iframe entirely when the stream is hidden. */}
   {camSize !== 'HIDE' && (
     <div className="cam-frame-container" style={{
       width: camSize === 'MAX' ? '1296px' : camSize === 'MID' ? '800px' : '480px',
@@ -171,7 +171,7 @@ export default function Index() {
 </div>
 
 
-      {/* 1. STATUS */}
+      {/* Status */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center rounded-lg border bg-card px-6 py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -228,7 +228,7 @@ export default function Index() {
         </div>
       )}
 
-      {/* 2. MODEL-Preview */}
+      {/* Model preview */}
       {!isLoading && !error && (status === "printing" || status === "paused") && job?.fileName && (
         <div className="preview-wrapper-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '24px', marginBottom: '16px', width: '100%' }}>
           <div style={{
@@ -278,3 +278,4 @@ export default function Index() {
     </div>
   );
 }
+

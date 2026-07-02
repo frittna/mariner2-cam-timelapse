@@ -1,17 +1,38 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Film, Trash2 } from "lucide-react";
+﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Film, Loader2, Trash2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
+import { useTemperatureUnit } from "@/hooks/use-temperature-unit";
 import { api } from "@/lib/api";
+import {
+  formatTemperature,
+  getTemperatureColorClass,
+  type TemperatureUnit,
+} from "@/lib/temperature";
+import { cn } from "@/lib/utils";
 
 const RENDER_PRESETS = [
-  { value: "smooth_60fps", label: "60fps" },
-  { value: "normal_30fps", label: "30fps" },
-  { value: "cinematic_25fps", label: "25fps" },
+  { value: "smooth_60fps", label: "60 fps" },
+  { value: "normal_30fps", label: "30 fps" },
+  { value: "cinematic_25fps", label: "25 fps" },
 ] as const;
+
+const unitOptions: Array<{ value: TemperatureUnit; label: string }> = [
+  { value: "C", label: "Celsius" },
+  { value: "F", label: "Fahrenheit" },
+];
+
+const tempBands = [
+  { label: "Cool", range: "Below 20 °C", sample: 18 },
+  { label: "Normal", range: "20-37 °C", sample: 27 },
+  { label: "Hot", range: "37-42 °C", sample: 39 },
+  { label: "Alert", range: "Above 42 °C", sample: 43 },
+];
 
 export default function Timelapse() {
   const queryClient = useQueryClient();
+  const { unit, setUnit } = useTemperatureUnit();
 
   const { data: status } = useQuery({
     queryKey: ["timelapse-status"],
@@ -46,7 +67,7 @@ export default function Timelapse() {
   const setProfileMutation = useMutation({
     mutationFn: (profile: "HIGH" | "MID" | "LOW") => api.timelapseSetProfile(profile),
     onSuccess: () => {
-      toast.success("Kameraprofil gespeichert. MediaMTX und Mariner bitte neu starten.");
+      toast.success("Camera profile updated live.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-profiles"] });
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
     },
@@ -56,7 +77,7 @@ export default function Timelapse() {
   const startSessionMutation = useMutation({
     mutationFn: () => api.timelapseStartSession(),
     onSuccess: () => {
-      toast.success("Timelapse aktiviert");
+      toast.success("Timelapse started.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -65,7 +86,7 @@ export default function Timelapse() {
   const endSessionMutation = useMutation({
     mutationFn: () => api.timelapseEndSession(),
     onSuccess: () => {
-      toast.success("Timelapse deaktiviert");
+      toast.success("Timelapse stopped.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
       queryClient.invalidateQueries({ queryKey: ["timelapse-videos"] });
     },
@@ -75,7 +96,7 @@ export default function Timelapse() {
   const captureMutation = useMutation({
     mutationFn: () => api.timelapseCapture(),
     onSuccess: () => {
-      toast.success("Testfoto ausgelost");
+      toast.success("Test frame queued.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -86,9 +107,18 @@ export default function Timelapse() {
     onSuccess: (result) => {
       toast.success(
         result.capture_queued
-          ? "Z-Testtrigger erkannt, Frame wurde ausgelost"
-          : "Z-Testtrigger erkannt, aber keine aktive Session",
+          ? "Z trigger detected. One frame was queued."
+          : "Z trigger detected, but no session is active.",
       );
+      queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const setDetectorInvertMutation = useMutation({
+    mutationFn: (invert: boolean) => api.timelapseSetDetectorInvert(invert),
+    onSuccess: () => {
+      toast.success("Z direction updated.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -96,20 +126,22 @@ export default function Timelapse() {
 
   const profile = profileData?.active ?? "HIGH";
   const detector = status?.detector;
+  const profileDetails = profileData?.profiles;
   const renderSessionId = status?.session_id ?? status?.last_session_id;
   const mutationPending =
     startSessionMutation.isPending ||
     endSessionMutation.isPending ||
     captureMutation.isPending ||
-    triggerTestMutation.isPending;
+    triggerTestMutation.isPending ||
+    setDetectorInvertMutation.isPending;
 
   const renderMutation = useMutation({
     mutationFn: (preset: "smooth_60fps" | "normal_30fps" | "cinematic_25fps") => {
-      if (!renderSessionId) throw new Error("Keine Session-ID verfugbar");
+      if (!renderSessionId) throw new Error("No session ID available.");
       return api.timelapseRender(renderSessionId, preset);
     },
     onSuccess: () => {
-      toast.success("Timelapse gerendert");
+      toast.success("Timelapse rendered.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-videos"] });
       queryClient.invalidateQueries({ queryKey: ["timelapse-disk"] });
     },
@@ -130,83 +162,50 @@ export default function Timelapse() {
     return value ? "HIGH" : "LOW";
   }
 
+  const tempC = bmp280?.ok ? bmp280.temp_c : null;
+
   return (
     <div className="container pt-2 pb-2 space-y-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Timelapse</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Isolierte Timelapse-Steuerung mit Z-Trigger, globalem cam-Profil und Video-Rendering
+          Camera, timelapse, rendering, and sensor controls in one place.
         </p>
       </div>
 
-      <div className="rounded-lg border bg-card p-4 space-y-3">
-        <div className="text-sm">
-          <span className="font-medium">Status:</span>{" "}
-          {status?.recording ? "Recording" : "Idle"} |{" "}
-          <span className="font-medium">Z-Detector:</span>{" "}
-          {status?.z_detector_running ? "active" : "inactive"} |{" "}
-          <span className="font-medium">Frames:</span> {status?.frame_count ?? 0}
+      <div className="rounded-lg border bg-card p-4 space-y-4">
+        <div>
+          <div className="text-sm font-medium">Global camera settings (cam)</div>
+          <p className="text-xs text-muted-foreground">
+            The selected profile is applied live through the MediaMTX API.
+          </p>
         </div>
-        <div className="text-sm">
-          <span className="font-medium">Session:</span> {status?.session_id ?? "none"}
-          {status?.last_session_id ? ` | Letzte Session: ${status.last_session_id}` : ""}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() => startSessionMutation.mutate()}
-            disabled={Boolean(status?.recording) || mutationPending}
-          >
-            Aktivieren
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => endSessionMutation.mutate()}
-            disabled={!status?.recording || mutationPending}
-          >
-            Deaktivieren
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => captureMutation.mutate()}
-            disabled={!status?.recording || mutationPending}
-          >
-            Testfoto
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => triggerTestMutation.mutate()}
-            disabled={mutationPending}
-          >
-            Z-Testtrigger
-          </Button>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Aktivieren startet die Session. Danach lost jede erkannte Z-Top-Position automatisch ein Frame aus.
-        </div>
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {(["HIGH", "MID", "LOW"] as const).map((currentProfile) => {
+            const details = profileDetails?.[currentProfile];
+            const text = details
+              ? `${details.resolution} | ${details.bitrate} | ${details.fps} fps`
+              : "...";
 
-      <div className="rounded-lg border bg-card p-4 space-y-3">
-        <div className="text-sm font-medium">Globale Kameraqualitaet (cam)</div>
-        <div className="flex items-center gap-2">
-          {(["HIGH", "MID", "LOW"] as const).map((p) => (
-            <Button
-              key={p}
-              size="sm"
-              variant={profile === p ? "default" : "outline"}
-              onClick={() => setProfileMutation.mutate(p)}
-              disabled={setProfileMutation.isPending}
-            >
-              {p}
-            </Button>
-          ))}
+            return (
+              <Button
+                key={currentProfile}
+                size="sm"
+                variant={profile === currentProfile ? "default" : "outline"}
+                onClick={() => setProfileMutation.mutate(currentProfile)}
+                disabled={setProfileMutation.isPending}
+                className="h-auto py-2"
+              >
+                <span className="flex flex-col items-start leading-tight">
+                  <span>{currentProfile}</span>
+                  <span className="text-[10px] opacity-80">{text}</span>
+                </span>
+              </Button>
+            );
+          })}
         </div>
         <div className="text-sm">
-          <span className="font-medium">Aktiv markiert:</span> {profile}
-          {profileData?.restart_required ? " | Neustart ausstehend" : " | Kein Neustart offen"}
+          <span className="font-medium">Selected:</span> {profile}
         </div>
         <div className="text-xs text-muted-foreground">
           Stream: {profileData?.stream_path ?? "cam"} | {profileData?.note}
@@ -214,29 +213,57 @@ export default function Timelapse() {
       </div>
 
       <div className="rounded-lg border bg-card p-4 space-y-3">
-        <div className="text-sm font-medium">Sensoren</div>
         <div className="text-sm">
-          <span className="font-medium">BMP280:</span>{" "}
-          {bmp280?.ok ? `${bmp280.temp_c?.toFixed(1)} °C` : `n/a${bmp280?.error ? ` (${bmp280.error})` : ""}`}
+          <span className="font-medium">Status:</span>{" "}
+          {status?.recording ? "Recording" : "Idle"} |{" "}
+          <span className="font-medium">Z detector:</span>{" "}
+          {status?.z_detector_running ? "active" : "inactive"} |{" "}
+          <span className="font-medium">Frames:</span> {status?.frame_count ?? 0}
         </div>
         <div className="text-sm">
-          <span className="font-medium">CNY70 A/B:</span>{" "}
-          {detector ? `${formatSensorState(detector.sensor_a)} / ${formatSensorState(detector.sensor_b)}` : "n/a"}
+          <span className="font-medium">Session:</span> {status?.session_id ?? "none"}
+          {status?.last_session_id ? ` | Last session: ${status.last_session_id}` : ""}
         </div>
-        <div className="text-sm">
-          <span className="font-medium">Top-Erkennungen:</span> {detector?.top_event_count ?? 0}
-          {detector?.last_top_detected_at
-            ? ` | Letzte: ${new Date(detector.last_top_detected_at).toLocaleString()}`
-            : ""}
-          {detector?.last_event_simulated ? " | letzte Erkennung war Testtrigger" : ""}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => startSessionMutation.mutate()}
+            disabled={Boolean(status?.recording) || mutationPending}
+          >
+            Start
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => endSessionMutation.mutate()}
+            disabled={!status?.recording || mutationPending}
+          >
+            Stop
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => captureMutation.mutate()}
+            disabled={!status?.recording || mutationPending}
+          >
+            Test frame
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => triggerTestMutation.mutate()}
+            disabled={mutationPending}
+          >
+            Test Z trigger
+          </Button>
         </div>
         <div className="text-xs text-muted-foreground">
-          Die Sensorwerte dienen nur zum Testen der zwei CNY70 und der Z-Richtungs-Erkennung im Timelapse-Fenster.
+          Start opens a capture session. Each detected Z-top should queue one frame.
         </div>
       </div>
 
       <div className="rounded-lg border bg-card p-4 space-y-3">
-        <div className="text-sm font-medium">Video Rendering</div>
+        <div className="text-sm font-medium">Video rendering</div>
         <div className="flex flex-wrap gap-2">
           {RENDER_PRESETS.map((preset) => (
             <Button
@@ -250,10 +277,102 @@ export default function Timelapse() {
           ))}
         </div>
         <div className="text-xs text-muted-foreground">
-          Rendering nutzt die aktive oder zuletzt beendete Session. Die Bildqualitaet kommt vom globalen cam-Stream.
+          Rendering uses the current session or the latest finished one. Quality comes from the global cam stream.
         </div>
         <div className="text-xs text-muted-foreground">
-          Disk: {disk ? `${disk.free_gb.toFixed(1)} GB frei` : "..."}
+          Disk: {disk ? `${disk.free_gb.toFixed(1)} GB free` : "..."}
+        </div>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4 space-y-4">
+        <div className="text-sm font-medium">Sensors</div>
+        <div className="text-sm">
+          <span className="font-medium">BMP280:</span>{" "}
+          <span className={cn(getTemperatureColorClass(tempC))}>
+            {bmp280?.ok
+              ? formatTemperature(tempC, unit)
+              : `n/a${bmp280?.error ? ` (${bmp280.error})` : ""}`}
+          </span>
+        </div>
+        <div className="text-sm">
+          <span className="font-medium">CNY70 A/B:</span>{" "}
+          {detector
+            ? `${formatSensorState(detector.sensor_a)} / ${formatSensorState(detector.sensor_b)}`
+            : "n/a"}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-medium">Top detections:</span> {detector?.top_event_count ?? 0}
+          {detector?.last_top_detected_at
+            ? ` | Last: ${new Date(detector.last_top_detected_at).toLocaleString()}`
+            : ""}
+          {detector?.last_event_simulated ? " | last event was a test trigger" : ""}
+          <button
+            type="button"
+            onClick={() => setDetectorInvertMutation.mutate(!(detector?.invert ?? false))}
+            disabled={setDetectorInvertMutation.isPending}
+            className={cn(
+              "ml-auto inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
+              detector?.invert
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border bg-background text-muted-foreground",
+            )}
+            aria-pressed={detector?.invert ?? false}
+          >
+            <span>Invert</span>
+            <span
+              className={cn(
+                "relative h-5 w-9 rounded-full transition-colors",
+                detector?.invert ? "bg-primary" : "bg-muted",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+                  detector?.invert ? "translate-x-4" : "translate-x-0.5",
+                )}
+              />
+            </span>
+          </button>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          These values are for validating the two CNY70 sensors and the Z trigger logic. Use Invert when top and bottom are swapped.
+        </div>
+
+        <div className="border-t border-border/60 pt-4 space-y-3">
+          <div>
+            <div className="text-sm font-medium">Temperature display</div>
+            <p className="text-xs text-muted-foreground">
+              Choose how temperatures are shown in the navbar and sensor readout.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {unitOptions.map((option) => (
+              <Button
+                key={option.value}
+                size="sm"
+                variant={unit === option.value ? "default" : "outline"}
+                onClick={() => setUnit(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Preview: <span className="font-medium text-foreground">{formatTemperature(24.5, unit)}</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {tempBands.map((band) => (
+              <div key={band.label} className="rounded-md border border-border/60 bg-background/40 p-3">
+                <div className={cn("text-sm font-semibold", getTemperatureColorClass(band.sample))}>
+                  {band.label}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">{band.range}</div>
+                <div className={cn("mt-2 text-sm", getTemperatureColorClass(band.sample))}>
+                  {formatTemperature(band.sample, unit)}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -265,7 +384,7 @@ export default function Timelapse() {
         ) : videos.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
             <Film className="mx-auto mb-2 h-8 w-8 opacity-40" />
-            Noch keine Timelapse-Videos
+            No timelapse videos yet.
           </div>
         ) : (
           <div className="divide-y">
@@ -279,7 +398,12 @@ export default function Timelapse() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => window.open(`/api/timelapse/videos/${encodeURIComponent(video.filename)}`, "_blank")}
+                    onClick={() =>
+                      window.open(
+                        `/api/timelapse/videos/${encodeURIComponent(video.filename)}`,
+                        "_blank",
+                      )
+                    }
                   >
                     Open
                   </Button>

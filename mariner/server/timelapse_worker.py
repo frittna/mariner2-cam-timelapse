@@ -12,24 +12,53 @@ from mariner.server.timelapse_manager import SESSIONS_DIR
 
 logger = logging.getLogger(__name__)
 
-# Die Pi-Kamera (rpiCamera) kann nur einen Stream gleichzeitig liefern.
-# Profile werden per MediaMTX-API dynamisch umgeschaltet (api: yes noetig).
-#
-# Profil-Referenz (Resolution x Hoehe, FPS, Bitrate):
-#   HIGH : 1296x972,  30 fps, 4000000 bit/s  -- beste Qualitaet, braucht schnelle SD
-#   MID  : 1280x720,  20 fps, 2000000 bit/s  -- ausgewogen, empfohlener Standard
-#   LOW  :  640x480,  15 fps,  800000 bit/s  -- niedrigste Last, kleinste Dateien
-PROFILE_SETTINGS = {
-    "HIGH": {"rpiCameraWidth": 1296, "rpiCameraHeight": 972,  "rpiCameraFps": 30, "rpiCameraBitRate": 4000000},
-    "MID":  {"rpiCameraWidth": 1280, "rpiCameraHeight": 720,  "rpiCameraFps": 20, "rpiCameraBitRate": 2000000},
-    "LOW":  {"rpiCameraWidth": 640,  "rpiCameraHeight": 480,  "rpiCameraFps": 15, "rpiCameraBitRate": 800000},
-}
-
 PROFILE_TO_STREAM = {
     "HIGH": "cam",
-    "MID":  "cam",
-    "LOW":  "cam",
+    "MID": "cam",
+    "LOW": "cam",
 }
+
+PROFILE_SETTINGS = {
+    "HIGH": {
+        "rpiCameraWidth": 1296,
+        "rpiCameraHeight": 972,
+        "rpiCameraFPS": 30,
+        "rpiCameraBitrate": 4000000,
+        "rpiCameraProfile": "main",
+    },
+    "MID": {
+        "rpiCameraWidth": 1024,
+        "rpiCameraHeight": 768,
+        "rpiCameraFPS": 20,
+        "rpiCameraBitrate": 2000000,
+        "rpiCameraProfile": "main",
+    },
+    "LOW": {
+        "rpiCameraWidth": 640,
+        "rpiCameraHeight": 480,
+        "rpiCameraFPS": 15,
+        "rpiCameraBitrate": 800000,
+        "rpiCameraProfile": "main",
+    },
+}
+
+
+def _format_bitrate(bitrate: int) -> str:
+    if bitrate >= 1000000:
+        value = bitrate / 1000000
+        return f"{int(value) if value.is_integer() else value} Mbps"
+    return f"{int(bitrate / 1000)} kbps"
+
+
+def get_profile_details() -> dict[str, dict[str, str]]:
+    return {
+        name: {
+            "resolution": f"{settings['rpiCameraWidth']}x{settings['rpiCameraHeight']}",
+            "bitrate": _format_bitrate(int(settings["rpiCameraBitrate"])),
+            "fps": str(settings["rpiCameraFPS"]),
+        }
+        for name, settings in PROFILE_SETTINGS.items()
+    }
 
 
 class TimelapseWorker:
@@ -41,12 +70,18 @@ class TimelapseWorker:
     ) -> None:
         self.mediamtx_host = mediamtx_host
         self.mediamtx_port = mediamtx_port
-        self.stream_profile = stream_profile if stream_profile in PROFILE_TO_STREAM else "HIGH"
+        self.stream_profile = (
+            stream_profile if stream_profile in PROFILE_TO_STREAM else "HIGH"
+        )
         self.current_session_id: Optional[str] = None
+        self.last_session_id: Optional[str] = None
         self.frame_counter = 0
         self.is_recording = False
-        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="timelapse")
+        self._executor = ThreadPoolExecutor(
+            max_workers=2, thread_name_prefix="timelapse"
+        )
         self._lock = threading.Lock()
+        self._apply_profile_to_mediamtx(self.stream_profile)
 
     def shutdown(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)
@@ -59,11 +94,10 @@ class TimelapseWorker:
             return self.stream_profile
 
     def _apply_profile_to_mediamtx(self, profile: str) -> None:
-        """Sendet die Profil-Einstellungen per PATCH an die MediaMTX-API (api: yes erforderlich)."""
         settings = PROFILE_SETTINGS.get(profile, PROFILE_SETTINGS["HIGH"])
-        api_url = f"http://{self.mediamtx_host}:9997/v3/config/paths/edit/cam"
+        api_url = f"http://{self.mediamtx_host}:9997/v3/config/paths/patch/cam"
         try:
-            data = json.dumps(settings).encode()
+            data = json.dumps(settings).encode("utf-8")
             req = urllib.request.Request(api_url, data=data, method="PATCH")
             req.add_header("Content-Type", "application/json")
             urllib.request.urlopen(req, timeout=3)
@@ -81,6 +115,7 @@ class TimelapseWorker:
                 return None
             (SESSIONS_DIR / cleaned).mkdir(parents=True, exist_ok=True)
             self.current_session_id = cleaned
+            self.last_session_id = cleaned
             self.frame_counter = 0
             self.is_recording = True
         return cleaned

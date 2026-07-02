@@ -1,83 +1,108 @@
-# Timelapse – MediaMTX Konfiguration
+﻿# Timelapse - MediaMTX setup
 
-Die Pi-Kamera (`rpiCamera`) kann immer nur **einen** Stream gleichzeitig öffnen.
-Profile werden deshalb durch Anpassen des `cam:`-Blocks in der mediamtx.yml
-aktiviert – danach beide Dienste neu starten.
+The Raspberry Pi camera (`rpiCamera`) can only provide **one** live source at a time.
+Mariner therefore uses a single global `cam` path and updates its quality settings live through the MediaMTX Control API.
 
----
+## Current camera profiles
 
-## Datei: `/etc/mediamtx/mediamtx.yml`
+These are the profiles used by the UI and the backend:
 
-Nur der `paths:`-Abschnitt muss geändert werden. Den gewünschten Profilblock
-einfach als `cam:` eintragen, die anderen auskommentiert lassen.
+### HIGH - 1296x972, 30 fps, 4 Mbps
+Best image quality for detailed timelapse captures.
 
----
+### MID - 1024x768, 20 fps, 2 Mbps
+Balanced 4:3 profile with lower load than HIGH.
 
-### Profil HIGH — 1296×972, 30 fps, 4 Mbit/s
-> Beste Qualität. Für Zeitraffer mit viel Detail. Benötigt schnelle SD-Karte.
+### LOW - 640x480, 15 fps, 800 kbps
+Lowest load and smallest files. Uses the `main` profile as well.
+
+## Required MediaMTX configuration
+
+File:
+
+```text
+/etc/mediamtx/mediamtx.yml
+```
+
+The `cam` path must exist and must use `rpiCamera`.
+The Control API must also be enabled.
+
+Example:
 
 ```yaml
+api: yes
+apiAddress: :9997
+
 paths:
   all_others:
   cam:
     source: rpiCamera
     rpiCameraWidth: 1296
     rpiCameraHeight: 972
-    rpiCameraFps: 30
-    rpiCameraBitRate: 4000000     # 4 Mbit/s
+    rpiCameraFPS: 30
+    rpiCameraBitrate: 4000000
     rpiCameraProfile: main
 ```
 
----
+## How profile switching works now
 
-### Profil MID — 1280×720, 25 fps, 2 Mbit/s
-> Ausgewogener Standard. 16:9-Format, geringere Last. Empfohlen für den Alltag.
+Mariner updates the existing `cam` path through:
 
-```yaml
-paths:
-  all_others:
-  cam:
-    source: rpiCamera
-    rpiCameraWidth: 1280
-    rpiCameraHeight: 720
-    rpiCameraFps: 25
-    rpiCameraBitRate: 2000000     # 2 Mbit/s
-    rpiCameraProfile: main
+```text
+PATCH /v3/config/paths/patch/cam
 ```
 
----
+That means:
 
-### Profil LOW — 640×480, 15 fps, 800 kbit/s
-> Niedrigste Last, kleinste Dateien. Für lange Drucke oder schwache Hardware.
+- the selected UI profile is applied live
+- the stream path stays `cam`
+- MediaMTX must expose the Control API on port `9997`
 
-```yaml
-paths:
-  all_others:
-  cam:
-    source: rpiCamera
-    rpiCameraWidth: 640
-    rpiCameraHeight: 480
-    rpiCameraFps: 15
-    rpiCameraBitRate: 800000      # 800 kbit/s
-    rpiCameraProfile: baseline
+## Persistent timelapse settings
+
+Selected timelapse settings are stored at:
+
+```text
+~/.mariner/timelapse/settings.json
 ```
 
----
+Legacy settings from:
 
-## Profil wechseln
-
-1. Den gewünschten Profilblock oben kopieren
-2. In `/etc/mediamtx/mediamtx.yml` den bestehenden `cam:`-Block ersetzen
-3. Dienste neu starten:
-
-```bash
-sudo systemctl restart mediamtx
-sudo systemctl restart mariner3d
+```text
+/var/tmp/mariner_timelapse/settings.json
 ```
 
-4. Im Timelapse-UI (oder per API) das passende Profil auswählen:
-   `PUT /api/timelapse/profile  {"profile": "MID"}`
+are migrated automatically when present.
 
-> **Hinweis:** Das UI-Profil (HIGH/MID/LOW) ist eine Markierung für die Session-Metadaten
-> und den Dateinamen — es steuert **nicht** die Kameraeinstellungen selbst.
-> Die tatsächliche Qualität bestimmt allein der aktive `cam:`-Block in der mediamtx.yml.
+## Z-top detection
+
+The detector now uses a directional transition into `(True, True)` instead of triggering on every `(True, True)` state.
+
+Default top-entry mode:
+
+- sensor A enters first: `(True, False) -> (True, True)`
+
+Inverted mode:
+
+- sensor B enters first: `(False, True) -> (True, True)`
+
+The UI exposes this as an **Invert** toggle in the Sensors section.
+
+## Files updated in this change
+
+```text
+frontend/src/App.tsx
+frontend/src/components/AppNav.tsx
+frontend/src/hooks/use-temperature-unit.ts
+frontend/src/lib/api.ts
+frontend/src/lib/temperature.ts
+frontend/src/pages/Files.tsx
+frontend/src/pages/Index.tsx
+frontend/src/pages/Settings.tsx
+frontend/src/pages/Timelapse.tsx
+mariner/server/routes_timelapse.py
+mariner/server/timelapse_manager.py
+mariner/server/timelapse_worker.py
+mariner/server/z_spindle_detector.py
+mariner/tests/test_z_spindle_detector.py
+```

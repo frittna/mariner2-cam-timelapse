@@ -1,4 +1,4 @@
-import json
+﻿import json
 import shutil
 import subprocess
 from datetime import datetime
@@ -8,7 +8,8 @@ from typing import Dict, Optional, Tuple
 BASE_DIR = Path("/var/tmp/mariner_timelapse")
 SESSIONS_DIR = BASE_DIR / "sessions"
 VIDEOS_DIR = BASE_DIR / "videos"
-SETTINGS_FILE = BASE_DIR / "settings.json"
+SETTINGS_FILE = Path.home() / ".mariner" / "timelapse" / "settings.json"
+LEGACY_SETTINGS_FILE = BASE_DIR / "settings.json"
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -23,7 +24,9 @@ class TimelapseManager:
     @staticmethod
     def list_videos() -> list[dict]:
         output = []
-        for path in sorted(VIDEOS_DIR.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True):
+        for path in sorted(
+            VIDEOS_DIR.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True
+        ):
             stat = path.stat()
             output.append(
                 {
@@ -36,18 +39,31 @@ class TimelapseManager:
         return output
 
     @staticmethod
-    def load_settings() -> dict:
-        if not SETTINGS_FILE.exists():
-            return {}
+    def _read_settings_file(path: Path) -> dict:
         try:
-            return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            return json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return {}
+
+    @classmethod
+    def load_settings(cls) -> dict:
+        if SETTINGS_FILE.exists():
+            return cls._read_settings_file(SETTINGS_FILE)
+
+        if LEGACY_SETTINGS_FILE.exists():
+            settings = cls._read_settings_file(LEGACY_SETTINGS_FILE)
+            if settings:
+                cls.save_settings(settings)
+                return settings
+
+        return {}
 
     @staticmethod
     def save_settings(settings: dict) -> dict:
         SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        SETTINGS_FILE.write_text(json.dumps(settings, indent=2, sort_keys=True), encoding="utf-8")
+        SETTINGS_FILE.write_text(
+            json.dumps(settings, indent=2, sort_keys=True), encoding="utf-8"
+        )
         return settings
 
     @classmethod
@@ -60,7 +76,24 @@ class TimelapseManager:
         normalized = profile.upper()
         if normalized not in {"HIGH", "MID", "LOW"}:
             normalized = "HIGH"
-        cls.save_settings({"profile": normalized})
+        settings = cls.load_settings()
+        settings["profile"] = normalized
+        cls.save_settings(settings)
+        return normalized
+
+    @classmethod
+    def get_z_top_entry_sensor(cls, default: str = "A") -> str:
+        sensor = str(cls.load_settings().get("z_top_entry_sensor", default)).upper()
+        return sensor if sensor in {"A", "B"} else default
+
+    @classmethod
+    def set_z_top_entry_sensor(cls, sensor: str) -> str:
+        normalized = sensor.upper()
+        if normalized not in {"A", "B"}:
+            normalized = "A"
+        settings = cls.load_settings()
+        settings["z_top_entry_sensor"] = normalized
+        cls.save_settings(settings)
         return normalized
 
     @staticmethod
@@ -116,7 +149,9 @@ class TimelapseManager:
         session_metadata = cls.read_session_metadata(session_id)
 
         if not output_name:
-            output_name = f"timelapse_{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            output_name = (
+                f"timelapse_{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            )
         output_path = VIDEOS_DIR / f"{output_name}.mp4"
 
         cmd = [

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
@@ -43,7 +43,7 @@ export default function Files() {
   const queryClient = useQueryClient();
   type CamSize = 'MAX' | 'MID' | 'MIN' | 'HIDE';
 
-  // 1. Zustand absolut synchron initialisieren
+  // Initialize the page-specific camera size immediately.
   const [camSize, setCamSize] = useState<CamSize>(() => {
     if (typeof window !== 'undefined') {
       const saved = window.localStorage.getItem('mariner_cam_size_files');
@@ -51,12 +51,12 @@ export default function Files() {
         return saved as CamSize;
       }
     }
-    return 'MIN'; // Absoluter Erststart-Default
+    return 'MIN';
   });
 
-  // 2. Die Klick-Funktion VOR dem Überschreiben schützen
+  // Ignore repeated clicks for the active size.
   const handleSizeChange = async (size: CamSize) => {
-    // Nur aktiv werden, wenn sich die Größe wirklich vom aktuellen Zustand unterscheidet
+    // Only update when the size actually changes.
     if (size === camSize) return;
 
     setCamSize(size);
@@ -68,7 +68,7 @@ export default function Files() {
       const action = size === 'HIDE' ? 'stop' : 'start';
       await fetch(`/api/camera/${action}`, { method: 'POST' });
     } catch (error) {
-      console.error("Fehler beim Umschalten des Kamera-Dienstes im Backend:", error);
+      console.error("Failed to toggle the camera service:", error);
     }
   };
 
@@ -161,7 +161,7 @@ export default function Files() {
           </Button>
         </div>
       </div>
-      {/* Mariner2 HD Live Video Stream mit 4-Stage Toggle Control im File Manager */}
+      {/* Live camera stream controls. */}
       <div className="cam-wrapper-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px', width: '100%' }}>
   
   <div className="cam-control-bar" style={{
@@ -188,7 +188,7 @@ export default function Files() {
         boxShadow: camSize === 'HIDE' ? 'none' : '0 0 8px #22c55e',
         transition: 'background-color 0.3s'
       }} />
-      <span id="files-text">{camSize === 'HIDE' ? 'Cam: DEACTIVATED' : 'Cam: ACTIVE'}</span>
+      <span id="files-text">{camSize === 'HIDE' ? 'Camera: Off' : 'Camera: On'}</span>
     </div>
 
     <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -215,7 +215,7 @@ export default function Files() {
     </div>
   </div>
 
-  {/* Physischer Last-Stopp für die Dateiseite */}
+  {/* Remove the iframe entirely when the stream is hidden. */}
   {camSize !== 'HIDE' && (
     <div className="cam-frame-container" style={{
       width: camSize === 'MAX' ? '1296px' : camSize === 'MID' ? '800px' : '480px',
@@ -346,7 +346,7 @@ export default function Files() {
               {createFolderMutation.isPending ? (
                 <>
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  Creating…
+                  Creatingâ€¦
                 </>
               ) : (
                 "Create"
@@ -358,3 +358,4 @@ export default function Files() {
     </div>
   );
 }
+

@@ -1,11 +1,15 @@
-import os
+﻿import os
 import time
 from typing import Optional
 
 from flask import Blueprint, jsonify, request, send_file
 
 from mariner.server.timelapse_manager import TimelapseManager
-from mariner.server.timelapse_worker import PROFILE_TO_STREAM, TimelapseWorker
+from mariner.server.timelapse_worker import (
+    PROFILE_TO_STREAM,
+    TimelapseWorker,
+    get_profile_details,
+)
 from mariner.server.z_spindle_detector import ZSpindleDetector
 
 timelapse_bp = Blueprint("timelapse", __name__, url_prefix="/api/timelapse")
@@ -21,11 +25,16 @@ def init_timelapse() -> None:
         return
 
     configured_profile = os.getenv("MARINER_TIMELAPSE_PROFILE", "HIGH").upper()
+    configured_top_sensor = os.getenv("MARINER_Z_TOP_ENTRY_SENSOR", "A").upper()
     profile = TimelapseManager.get_selected_profile(configured_profile)
+    top_sensor = TimelapseManager.get_z_top_entry_sensor(configured_top_sensor)
     _startup_profile = profile
 
     _timelapse_worker = TimelapseWorker(stream_profile=profile)
-    _z_detector = ZSpindleDetector(on_top_detected=_timelapse_worker.capture_frame)
+    _z_detector = ZSpindleDetector(
+        on_top_detected=_timelapse_worker.capture_frame,
+        top_entry_sensor=top_sensor,
+    )
     if _z_detector.setup():
         _z_detector.start()
 
@@ -44,7 +53,7 @@ def status():
             "frame_count": worker.frame_counter if worker else 0,
             "z_detector_running": detector.is_running if detector else False,
             "stream_profile": worker.stream_profile if worker else "HIGH",
-            "restart_required": bool(worker and worker.stream_profile != _startup_profile),
+            "restart_required": False,
             "detector": detector_status,
         }
     )
@@ -101,7 +110,9 @@ def render():
     if not has_space:
         return jsonify({"error": "Insufficient disk space", "disk_info": disk_info}), 507
 
-    video = TimelapseManager.render_video(session_id, preset=preset, output_name=output_name)
+    video = TimelapseManager.render_video(
+        session_id, preset=preset, output_name=output_name
+    )
     if not video:
         return jsonify({"error": "Render failed"}), 500
 
@@ -152,9 +163,10 @@ def profiles():
         {
             "active": worker.stream_profile,
             "available": ["HIGH", "MID", "LOW"],
-            "restart_required": worker.stream_profile != _startup_profile,
+            "restart_required": False,
             "stream_path": PROFILE_TO_STREAM.get(worker.stream_profile, "cam"),
-            "note": "Only one global cam stream is used. Change MediaMTX and restart services to apply quality changes.",
+            "profiles": get_profile_details(),
+            "note": "The global cam profile is applied live through the MediaMTX API.",
         }
     )
 
@@ -172,11 +184,26 @@ def set_profile(profile: str):
         {
             "active": current,
             "available": ["HIGH", "MID", "LOW"],
-            "restart_required": current != _startup_profile,
+            "restart_required": False,
             "stream_path": PROFILE_TO_STREAM.get(current, "cam"),
-            "note": "MediaMTX cam profile after restart must match the selected quality.",
+            "profiles": get_profile_details(),
+            "note": "Profile applied live: resolution, bitrate, and FPS were updated.",
         }
     )
+
+
+@timelapse_bp.post("/detector/invert")
+def set_detector_invert():
+    detector = _z_detector
+    if detector is None:
+        return jsonify({"error": "Timelapse not initialized"}), 503
+
+    payload = request.get_json(silent=True) or {}
+    invert = bool(payload.get("invert"))
+    sensor = "B" if invert else "A"
+    detector.set_top_entry_sensor(sensor)
+    TimelapseManager.set_z_top_entry_sensor(sensor)
+    return jsonify(detector.get_status())
 
 
 @timelapse_bp.post("/test-trigger")
