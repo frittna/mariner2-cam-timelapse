@@ -72,7 +72,6 @@ export function AppNav() {
           </div>
 
           <div className="ml-1 flex items-center gap-0.5 border-l border-border pl-1">
-            <ThemeSwitcher />
             <PowerMenu />
           </div>
         </nav>

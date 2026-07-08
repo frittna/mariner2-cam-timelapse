@@ -33,7 +33,7 @@ class ZSpindleDetector:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._last_state: tuple[bool, bool] = (False, False)
-        self._sequence_phase = 0
+        self._sequence_index = 0
         self._last_transition: Optional[tuple[tuple[bool, bool], tuple[bool, bool]]] = None
         self._last_trigger = 0.0
         self._top_event_count = 0
@@ -80,7 +80,7 @@ class ZSpindleDetector:
         if normalized not in {"A", "B"}:
             normalized = "A"
         self.top_entry_sensor = normalized
-        self._sequence_phase = 0
+        self._sequence_index = 0
         return self.top_entry_sensor
 
     def _read_state(self) -> tuple[bool, bool]:
@@ -112,42 +112,27 @@ class ZSpindleDetector:
             self._last_state = new_state
             time.sleep(0.01)
 
-    def _top_entry_state(self) -> tuple[bool, bool]:
-        return self._expected_cycle()[1]
-
-    def _top_target_state(self) -> tuple[bool, bool]:
-        return self._expected_cycle()[3]
-
-    def _expected_cycle(self) -> tuple[tuple[bool, bool], ...]:
+    def _get_expected_sequence(self) -> tuple[tuple[bool, bool], ...]:
         if self.top_entry_sensor == "A":
             return ((False, False), (True, False), (True, True), (False, True), (False, False))
         return ((False, False), (False, True), (True, True), (True, False), (False, False))
 
     def _advance_sequence(self, new_state: tuple[bool, bool]) -> bool:
-        cycle = self._expected_cycle()
+        sequence = self._get_expected_sequence()
+        expected = sequence[self._sequence_index]
 
-        if self._sequence_phase == 0:
-            if new_state == cycle[0]:
-                self._sequence_phase = 1
-            return False
-
-        expected_state = cycle[self._sequence_phase]
-        if new_state == expected_state:
-            self._sequence_phase += 1
-            if self._sequence_phase == len(cycle):
-                self._sequence_phase = 1
+        if new_state == expected:
+            self._sequence_index += 1
+            if self._sequence_index >= len(sequence):
+                self._sequence_index = 0
                 return True
             return False
 
-        if new_state == cycle[0]:
-            self._sequence_phase = 1
+        if new_state == sequence[0]:
+            self._sequence_index = 1
             return False
 
-        if new_state == cycle[1]:
-            self._sequence_phase = 2
-            return False
-
-        self._sequence_phase = 0
+        self._sequence_index = 0
         return False
 
     def get_status(self) -> dict:
@@ -165,12 +150,9 @@ class ZSpindleDetector:
             ),
             "last_event_simulated": self._last_event_simulated,
             "top_entry_sensor": self.top_entry_sensor,
-            "top_entry_state": list(self._top_entry_state()),
-            "top_target_state": list(self._top_target_state()),
             "invert": self.top_entry_sensor == "B",
             "last_state": list(self._last_state),
-            "expected_cycle": [list(state) for state in self._expected_cycle()],
-            "sequence_phase": self._sequence_phase,
+            "sequence_index": self._sequence_index,
             "last_transition": (
                 {
                     "from": list(self._last_transition[0]),
