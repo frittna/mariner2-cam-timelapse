@@ -51,6 +51,7 @@ def status():
             "session_id": worker.current_session_id if worker else None,
             "last_session_id": worker.last_session_id if worker else None,
             "frame_count": worker.frame_counter if worker else 0,
+            "pending_frames": worker.get_pending_frames() if worker else 0,
             "z_detector_running": detector.is_running if detector else False,
             "stream_profile": worker.stream_profile if worker else "HIGH",
             "restart_required": False,
@@ -229,4 +230,5 @@ def run_fifo():
     payload = request.get_json(silent=True) or {}
     max_storage_mb = int(payload.get("max_storage_mb", 2048))
     return jsonify(TimelapseManager.enforce_fifo(max_storage_mb=max_storage_mb))
+
 

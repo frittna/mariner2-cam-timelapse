@@ -74,25 +74,41 @@ Legacy settings from:
 
 are migrated automatically when present.
 
-## Z-top detection
+## Z-top detection (direction-change mode)
 
-The detector uses a **4-state quadrature sequence**. This requires two sensors mounted slightly offset (~140-160 deg apart around the spindle) and a single narrow bright marker per revolution.
+The detector is now **direction-change based** (not full-sequence based):
 
-### Normal mode (sensor A enters first)
+- It detects the start edge of each revolution from `00`.
+- It tracks last revolution direction (`up` or `down`).
+- It triggers **only when direction changes from up to down**.
 
-```
-(F,F) -> (T,F) -> (T,T) -> (F,T) -> (F,F)  -- top detected
-```
+For the common bit pattern per revolution:
 
-### Inverted mode (sensor B enters first)
-
-```
-(F,F) -> (F,T) -> (T,T) -> (T,F) -> (F,F)  -- top detected
+```text
+00 -> 01 -> 11 -> 10 -> 00
 ```
 
-The reverse direction of either cycle does **not** trigger. All 4 states must appear in exact order.
+Direction mapping:
 
-The UI exposes this as an **Invert** toggle in the Sensors section.
+- `invert = false` (`top_entry_sensor = A`):
+  - `00 -> 01` = down
+  - `00 -> 10` = up
+- `invert = true` (`top_entry_sensor = B`):
+  - `00 -> 10` = down
+  - `00 -> 01` = up
+
+Trigger behavior:
+
+- Up revolutions: no trigger
+- First down revolution after up: trigger once
+- Following down revolutions: no trigger
+- Next change to down after going up again: trigger once
+
+## Frame capture queue behavior
+
+Frame capture is asynchronous (ffmpeg in worker threads). On session end, Mariner now waits for queued frame jobs to finish before the session is considered ended. This prevents rendering too early with missing frames.
+
+Practical note: if one frame capture takes ~2 seconds on your Pi, a trigger interval below that can still queue work, but end-session now drains that queue first.
 
 ## Files updated in this change
 
@@ -112,4 +128,3 @@ mariner/server/timelapse_worker.py
 mariner/server/z_spindle_detector.py
 mariner/tests/test_z_spindle_detector.py
 ```
-

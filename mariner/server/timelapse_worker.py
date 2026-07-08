@@ -81,6 +81,10 @@ class TimelapseWorker:
             max_workers=2, thread_name_prefix="timelapse"
         )
         self._lock = threading.Lock()
+        self._pending_lock = threading.Lock()
+        self._pending_frames = 0
+        self._all_frames_done = threading.Event()
+        self._all_frames_done.set()
         self._apply_profile_to_mediamtx(self.stream_profile)
 
     def shutdown(self) -> None:
@@ -118,6 +122,9 @@ class TimelapseWorker:
             self.last_session_id = cleaned
             self.frame_counter = 0
             self.is_recording = True
+            with self._pending_lock:
+                self._pending_frames = 0
+                self._all_frames_done.set()
         return cleaned
 
     def end_session(self) -> Optional[Path]:
@@ -128,7 +135,9 @@ class TimelapseWorker:
             self.is_recording = False
             self.current_session_id = None
             self.frame_counter = 0
-            return SESSIONS_DIR / session_id
+
+        self._wait_for_pending_frames(timeout=20.0)
+        return SESSIONS_DIR / session_id
 
     def capture_frame(self) -> bool:
         with self._lock:
@@ -140,8 +149,38 @@ class TimelapseWorker:
             profile = self.stream_profile
 
         frame_path = SESSIONS_DIR / session_id / f"frame_{frame_number:06d}.jpg"
-        self._executor.submit(self._capture_single_frame, frame_path, profile)
+        self._mark_frame_queued()
+        try:
+            self._executor.submit(self._capture_single_frame, frame_path, profile)
+        except RuntimeError:
+            self._mark_frame_finished()
+            return False
         return True
+
+    def _mark_frame_queued(self) -> None:
+        with self._pending_lock:
+            self._pending_frames += 1
+            self._all_frames_done.clear()
+
+    def _mark_frame_finished(self) -> None:
+        with self._pending_lock:
+            if self._pending_frames > 0:
+                self._pending_frames -= 1
+            if self._pending_frames == 0:
+                self._all_frames_done.set()
+
+    def _wait_for_pending_frames(self, timeout: float) -> None:
+        if not self._all_frames_done.wait(timeout=timeout):
+            with self._pending_lock:
+                pending = self._pending_frames
+            logger.warning(
+                "Timed out waiting for pending timelapse frames to finish: %s pending",
+                pending,
+            )
+
+    def get_pending_frames(self) -> int:
+        with self._pending_lock:
+            return self._pending_frames
 
     def _capture_single_frame(self, frame_path: Path, profile: str) -> None:
         stream_path = PROFILE_TO_STREAM.get(profile, PROFILE_TO_STREAM["HIGH"])
@@ -167,8 +206,11 @@ class TimelapseWorker:
         except subprocess.TimeoutExpired:
             if frame_path.exists():
                 frame_path.unlink()
+        finally:
+            self._mark_frame_finished()
 
     @staticmethod
     def _sanitize_session_id(raw: str) -> str:
         cleaned = re.sub(r"[^a-zA-Z0-9._-]", "_", (raw or "").strip())
         return cleaned[:64]
+

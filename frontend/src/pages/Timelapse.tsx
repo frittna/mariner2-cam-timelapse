@@ -225,7 +225,8 @@ export default function Timelapse() {
           {status?.recording ? "Recording" : "Idle"} |{" "}
           <span className="font-medium">Z detector:</span>{" "}
           {status?.z_detector_running ? "active" : "inactive"} |{" "}
-          <span className="font-medium">Frames:</span> {status?.frame_count ?? 0}
+          <span className="font-medium">Frames:</span> {status?.frame_count ?? 0} |{" "}
+          <span className="font-medium">Queue:</span> {status?.pending_frames ?? 0}
         </div>
         <div className="text-sm">
           <span className="font-medium">Session:</span> {status?.session_id ?? "none"}
@@ -458,6 +459,7 @@ export default function Timelapse() {
     </div>
   );
 }
+
 
 
 

@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import io
 import os
 import pathlib
@@ -525,6 +525,8 @@ class MarinerServerTest(TestCase):
         expect(body["ready"]).to_equal(True)
         expect("z_detector_running" in body).to_equal(True)
         expect("detector" in body).to_equal(True)
+        expect("pending_frames" in body).to_equal(True)
+        expect(isinstance(body["pending_frames"], int)).to_equal(True)
 
     def test_timelapse_profiles_endpoint(self) -> None:
         response = self.client.get("/api/timelapse/profiles")
@@ -539,5 +541,6 @@ class MarinerServerTest(TestCase):
         body = response.get_json()
         expect(body["status"]).to_equal("triggered")
         expect("detector" in body).to_equal(True)
+
 
 
