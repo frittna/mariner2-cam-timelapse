@@ -69,10 +69,24 @@ Selected timelapse settings are stored at:
 Legacy settings from:
 
 ```text
-/var/tmp/mariner_timelapse/settings.json
+/var/tmp/mariner_timelapse/settings.json (legacy)
 ```
 
 are migrated automatically when present.
+
+Timelapse data (sessions/frames/videos) is stored persistently at:
+
+```text
+~/.mariner/timelapse/
+```
+
+Legacy frames/videos from:
+
+```text
+/var/tmp/mariner_timelapse/
+```
+
+are migrated on startup when possible.
 
 ## Z-top detection (direction-change mode)
 
@@ -128,3 +142,4 @@ mariner/server/timelapse_worker.py
 mariner/server/z_spindle_detector.py
 mariner/tests/test_z_spindle_detector.py
 ```
+

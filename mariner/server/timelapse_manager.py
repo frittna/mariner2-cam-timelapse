@@ -5,13 +5,29 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-BASE_DIR = Path("/var/tmp/mariner_timelapse")
+BASE_DIR = Path.home() / ".mariner" / "timelapse"
+LEGACY_BASE_DIR = Path("/var/tmp/mariner_timelapse")
 SESSIONS_DIR = BASE_DIR / "sessions"
 VIDEOS_DIR = BASE_DIR / "videos"
 SETTINGS_FILE = Path.home() / ".mariner" / "timelapse" / "settings.json"
-LEGACY_SETTINGS_FILE = BASE_DIR / "settings.json"
+LEGACY_SETTINGS_FILE = LEGACY_BASE_DIR / "settings.json"
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+
+if LEGACY_BASE_DIR.exists():
+    legacy_sessions_dir = LEGACY_BASE_DIR / "sessions"
+    if legacy_sessions_dir.exists():
+        for path in legacy_sessions_dir.iterdir():
+            target = SESSIONS_DIR / path.name
+            if not target.exists():
+                shutil.move(str(path), str(target))
+
+    legacy_videos_dir = LEGACY_BASE_DIR / "videos"
+    if legacy_videos_dir.exists():
+        for path in legacy_videos_dir.iterdir():
+            target = VIDEOS_DIR / path.name
+            if not target.exists():
+                shutil.move(str(path), str(target))
 
 
 class TimelapseManager:
@@ -230,3 +246,4 @@ class TimelapseManager:
             "current_storage_mb": round(total_size / (1024 * 1024), 2),
             "removed_files": removed,
         }
+

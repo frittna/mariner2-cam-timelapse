@@ -145,7 +145,8 @@ def get_video(filename: str):
         return jsonify({"error": "Invalid filename"}), 400
     if not target.exists() or not target.is_file():
         return jsonify({"error": "Video not found"}), 404
-    return send_file(target, mimetype="video/mp4", as_attachment=False)
+    force_download = str(request.args.get("download", "0")).strip().lower() in {"1", "true", "yes", "on"}
+    return send_file(target, mimetype="video/mp4", as_attachment=force_download)
 
 
 @timelapse_bp.get("/disk-space")
@@ -230,5 +231,7 @@ def run_fifo():
     payload = request.get_json(silent=True) or {}
     max_storage_mb = int(payload.get("max_storage_mb", 2048))
     return jsonify(TimelapseManager.enforce_fifo(max_storage_mb=max_storage_mb))
+
+
 
 

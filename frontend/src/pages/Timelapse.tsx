@@ -270,6 +270,64 @@ export default function Timelapse() {
         </div>
       </div>
 
+      <div className="rounded-lg border bg-card">
+        {videosLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        ) : videos.length === 0 ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            <Film className="mx-auto mb-2 h-8 w-8 opacity-40" />
+            No timelapse videos yet.
+          </div>
+        ) : (
+          <div className="divide-y">
+            {videos.map((video) => (
+              <div key={video.filename} className="flex items-center justify-between p-3">
+                <div className="min-w-0">
+                  <div className="truncate font-mono text-sm">{video.filename}</div>
+                  <div className="text-xs text-muted-foreground">{video.size_mb} MB</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      window.open(
+                        `/api/timelapse/videos/${encodeURIComponent(video.filename)}`,
+                        "_blank",
+                      )
+                    }
+                  >
+                    Open
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      window.open(
+                        `/api/timelapse/videos/${encodeURIComponent(video.filename)}?download=1`,
+                        "_blank",
+                      )
+                    }
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => deleteMutation.mutate(video.filename)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="rounded-lg border bg-card p-4 space-y-3">
         <div className="text-sm font-medium">Video Rendering</div>
         <div className="flex flex-wrap gap-2">
@@ -411,54 +469,11 @@ export default function Timelapse() {
         </div>
       </div>
 
-      <div className="rounded-lg border bg-card">
-        {videosLoading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          </div>
-        ) : videos.length === 0 ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            <Film className="mx-auto mb-2 h-8 w-8 opacity-40" />
-            No timelapse videos yet.
-          </div>
-        ) : (
-          <div className="divide-y">
-            {videos.map((video) => (
-              <div key={video.filename} className="flex items-center justify-between p-3">
-                <div className="min-w-0">
-                  <div className="truncate font-mono text-sm">{video.filename}</div>
-                  <div className="text-xs text-muted-foreground">{video.size_mb} MB</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      window.open(
-                        `/api/timelapse/videos/${encodeURIComponent(video.filename)}`,
-                        "_blank",
-                      )
-                    }
-                  >
-                    Open
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => deleteMutation.mutate(video.filename)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+
     </div>
   );
 }
+
 
 
 
