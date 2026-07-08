@@ -39,6 +39,8 @@ class ZSpindleDetector:
         self._top_event_count = 0
         self._last_top_detected_at: Optional[float] = None
         self._last_event_simulated = False
+        # None = unknown, "up" = last revolution was upward, "down" = last revolution was downward
+        self._last_revolution_direction: Optional[str] = None
 
     @property
     def is_running(self) -> bool:
@@ -80,6 +82,7 @@ class ZSpindleDetector:
         if normalized not in {"A", "B"}:
             normalized = "A"
         self.top_entry_sensor = normalized
+        self._last_revolution_direction = None
         return self.top_entry_sensor
 
     def _read_state(self) -> tuple[bool, bool]:
@@ -102,7 +105,7 @@ class ZSpindleDetector:
     def _monitor_loop(self) -> None:
         while self._running:
             new_state = self._read_state()
-            if self._is_downward_start(new_state):
+            if self._check_direction_change_to_down(new_state):
                 now = time.monotonic()
                 if now - self._last_trigger >= self.debounce_seconds:
                     self._trigger()
@@ -111,21 +114,37 @@ class ZSpindleDetector:
             self._last_state = new_state
             time.sleep(0.01)
 
-    def _is_downward_start(self, new_state: tuple[bool, bool]) -> bool:
+    def _check_direction_change_to_down(self, new_state: tuple[bool, bool]) -> bool:
         """
-        Trigger once per downward revolution by detecting the specific transition
-        from neutral (0,0) to the first active state of a downward rotation.
+        Detect the moment the spindle changes direction from up to down.
+        Triggers only ONCE when direction changes to downward — not on every downward revolution.
 
-        Sequence per revolution: 00 -> 01 -> 11 -> 10 -> 00
-        - Normal  (top_entry_sensor=A): downward starts with B alone  -> 00->01 triggers
-        - Inverted (top_entry_sensor=B): downward starts with A alone -> 00->10 triggers
+        Each revolution produces exactly one 00->XX edge at its start.
+        - Normal  (top_entry_sensor=A): 00->01 = downward,  00->10 = upward
+        - Inverted (top_entry_sensor=B): 00->10 = downward, 00->01 = upward
+
+        Only trigger when direction was previously "up" (or unknown after upward) and now is "down".
         """
+        if self._last_state != (False, False):
+            return False
+
         if self.top_entry_sensor == "A":
-            down_start = (False, True)   # 00 -> 01
+            down_start = (False, True)
+            up_start   = (True, False)
         else:
-            down_start = (True, False)   # 00 -> 10
+            down_start = (True, False)
+            up_start   = (False, True)
 
-        return self._last_state == (False, False) and new_state == down_start
+        if new_state == up_start:
+            self._last_revolution_direction = "up"
+            return False
+
+        if new_state == down_start:
+            trigger = self._last_revolution_direction == "up"
+            self._last_revolution_direction = "down"
+            return trigger
+
+        return False
 
     def get_status(self) -> dict:
         sensor_a, sensor_b = self._read_state()
@@ -144,6 +163,7 @@ class ZSpindleDetector:
             "top_entry_sensor": self.top_entry_sensor,
             "invert": self.top_entry_sensor == "B",
             "last_state": list(self._last_state),
+            "last_revolution_direction": self._last_revolution_direction,
             "last_transition": (
                 {
                     "from": list(self._last_transition[0]),

@@ -2,40 +2,75 @@
 from mariner.server.z_spindle_detector import ZSpindleDetector
 
 
+def simulate_revolution(detector, direction: str) -> list[bool]:
+    """Simulate one full revolution and return list of trigger results."""
+    if detector.top_entry_sensor == "A":
+        if direction == "down":
+            states = [(False, True), (True, True), (True, False), (False, False)]
+        else:
+            states = [(True, False), (True, True), (False, True), (False, False)]
+    else:
+        if direction == "down":
+            states = [(True, False), (True, True), (False, True), (False, False)]
+        else:
+            states = [(False, True), (True, True), (True, False), (False, False)]
+
+    results = []
+    for state in states:
+        triggered = detector._check_direction_change_to_down(state)
+        detector._last_state = state
+        results.append(triggered)
+    return results
+
+
 class ZSpindleDetectorTest(unittest.TestCase):
 
-    def test_normal_downward_triggers_once(self) -> None:
-        # Sequence: 00->01->11->10->00, normal mode -> only 00->01 triggers
+    def test_up_then_down_triggers_once(self) -> None:
         d = ZSpindleDetector()
-        # d._last_state starts at (0,0)
-        self.assertTrue(d._is_downward_start((False, True)))    # 00->01 -> TRIGGER
-        d._last_state = (False, True)
-        self.assertFalse(d._is_downward_start((True, True)))    # 01->11 no trigger
-        d._last_state = (True, True)
-        self.assertFalse(d._is_downward_start((True, False)))   # 11->10 no trigger
-        d._last_state = (True, False)
-        self.assertFalse(d._is_downward_start((False, False)))  # 10->00 no trigger
+        # Three upward revolutions: no trigger
+        for _ in range(3):
+            results = simulate_revolution(d, "up")
+            self.assertFalse(any(results), "Up should never trigger")
+        # First downward revolution after going up: TRIGGER
+        results = simulate_revolution(d, "down")
+        self.assertTrue(any(results), "First down after up must trigger")
+        # More downward revolutions: no more triggers
+        for _ in range(3):
+            results = simulate_revolution(d, "down")
+            self.assertFalse(any(results), "Continued down must not trigger again")
 
-    def test_normal_upward_never_triggers(self) -> None:
-        # Upward sequence: 00->10->11->01->00 -> none trigger in normal mode
+    def test_down_then_up_no_trigger(self) -> None:
         d = ZSpindleDetector()
-        self.assertFalse(d._is_downward_start((True, False)))   # 00->10 no trigger
-        d._last_state = (True, False)
-        self.assertFalse(d._is_downward_start((True, True)))
-        d._last_state = (True, True)
-        self.assertFalse(d._is_downward_start((False, True)))
-        d._last_state = (False, True)
-        self.assertFalse(d._is_downward_start((False, False)))
+        simulate_revolution(d, "up")  # set direction to up first
+        simulate_revolution(d, "down")  # triggers once
+        # Now upward: no trigger
+        for _ in range(5):
+            results = simulate_revolution(d, "up")
+            self.assertFalse(any(results), "Up should never trigger")
 
-    def test_inverted_downward_triggers_once(self) -> None:
-        # Inverted mode: 00->10 triggers
-        d = ZSpindleDetector(top_entry_sensor="B")
-        self.assertTrue(d._is_downward_start((True, False)))    # 00->10 triggers
+    def test_alternating_triggers_once_each_down_start(self) -> None:
+        d = ZSpindleDetector()
+        simulate_revolution(d, "up")
+        # down start: triggers
+        r = simulate_revolution(d, "down")
+        self.assertTrue(any(r))
+        # more down: no trigger
+        r = simulate_revolution(d, "down")
+        self.assertFalse(any(r))
+        # back up: no trigger
+        r = simulate_revolution(d, "up")
+        self.assertFalse(any(r))
+        # down again: triggers
+        r = simulate_revolution(d, "down")
+        self.assertTrue(any(r))
 
-    def test_inverted_upward_never_triggers(self) -> None:
-        # Inverted upward: 00->01 no trigger
+    def test_inverted_mode(self) -> None:
         d = ZSpindleDetector(top_entry_sensor="B")
-        self.assertFalse(d._is_downward_start((False, True)))   # 00->01 no trigger
+        simulate_revolution(d, "up")
+        r = simulate_revolution(d, "down")
+        self.assertTrue(any(r), "Inverted: first down after up must trigger")
+        r = simulate_revolution(d, "down")
+        self.assertFalse(any(r), "Inverted: continued down must not trigger")
 
     def test_invalid_sensor_falls_back_to_a(self) -> None:
         d = ZSpindleDetector(top_entry_sensor="X")
