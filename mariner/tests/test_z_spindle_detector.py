@@ -1,48 +1,45 @@
 ﻿import unittest
-
 from mariner.server.z_spindle_detector import ZSpindleDetector
 
 
 class ZSpindleDetectorTest(unittest.TestCase):
-    def test_default_mode_up_to_down_triggers(self) -> None:
-        # Mode A: A on = up, B on = down. Only up->down triggers.
-        detector = ZSpindleDetector()
 
-        self.assertFalse(detector._check_direction_change((True, False)))
-        self.assertFalse(detector._check_direction_change((True, True)))
-        self.assertFalse(detector._check_direction_change((True, False)))
-        self.assertTrue(detector._check_direction_change((False, True)))
+    def test_normal_downward_triggers_once(self) -> None:
+        # Sequence: 00->01->11->10->00, normal mode -> only 00->01 triggers
+        d = ZSpindleDetector()
+        # d._last_state starts at (0,0)
+        self.assertTrue(d._is_downward_start((False, True)))    # 00->01 -> TRIGGER
+        d._last_state = (False, True)
+        self.assertFalse(d._is_downward_start((True, True)))    # 01->11 no trigger
+        d._last_state = (True, True)
+        self.assertFalse(d._is_downward_start((True, False)))   # 11->10 no trigger
+        d._last_state = (True, False)
+        self.assertFalse(d._is_downward_start((False, False)))  # 10->00 no trigger
 
-    def test_default_mode_down_to_up_no_trigger(self) -> None:
-        # Mode A: down->up does NOT trigger
-        detector = ZSpindleDetector()
+    def test_normal_upward_never_triggers(self) -> None:
+        # Upward sequence: 00->10->11->01->00 -> none trigger in normal mode
+        d = ZSpindleDetector()
+        self.assertFalse(d._is_downward_start((True, False)))   # 00->10 no trigger
+        d._last_state = (True, False)
+        self.assertFalse(d._is_downward_start((True, True)))
+        d._last_state = (True, True)
+        self.assertFalse(d._is_downward_start((False, True)))
+        d._last_state = (False, True)
+        self.assertFalse(d._is_downward_start((False, False)))
 
-        self.assertFalse(detector._check_direction_change((False, True)))
-        self.assertFalse(detector._check_direction_change((True, True)))
-        self.assertFalse(detector._check_direction_change((False, True)))
-        self.assertFalse(detector._check_direction_change((True, False)))
+    def test_inverted_downward_triggers_once(self) -> None:
+        # Inverted mode: 00->10 triggers
+        d = ZSpindleDetector(top_entry_sensor="B")
+        self.assertTrue(d._is_downward_start((True, False)))    # 00->10 triggers
 
-    def test_same_direction_no_trigger(self) -> None:
-        # Stay moving up
-        detector = ZSpindleDetector()
+    def test_inverted_upward_never_triggers(self) -> None:
+        # Inverted upward: 00->01 no trigger
+        d = ZSpindleDetector(top_entry_sensor="B")
+        self.assertFalse(d._is_downward_start((False, True)))   # 00->01 no trigger
 
-        self.assertFalse(detector._check_direction_change((True, False)))
-        self.assertFalse(detector._check_direction_change((True, True)))
-        self.assertFalse(detector._check_direction_change((True, False)))
-        self.assertFalse(detector._check_direction_change((True, True)))
-
-    def test_inverted_mode_up_to_down_triggers(self) -> None:
-        # Mode B: B on = up, A on = down. Only up->down triggers.
-        detector = ZSpindleDetector(top_entry_sensor="B")
-
-        self.assertFalse(detector._check_direction_change((False, True)))
-        self.assertFalse(detector._check_direction_change((True, True)))
-        self.assertFalse(detector._check_direction_change((False, True)))
-        self.assertTrue(detector._check_direction_change((True, False)))
-
-    def test_invalid_top_entry_sensor_falls_back_to_a(self) -> None:
-        detector = ZSpindleDetector(top_entry_sensor="invalid")
-        self.assertEqual(detector.top_entry_sensor, "A")
+    def test_invalid_sensor_falls_back_to_a(self) -> None:
+        d = ZSpindleDetector(top_entry_sensor="X")
+        self.assertEqual(d.top_entry_sensor, "A")
 
 
 if __name__ == "__main__":
