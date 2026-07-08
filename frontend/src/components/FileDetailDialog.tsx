@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
@@ -53,7 +53,11 @@ export function FileDetailDialog({
   const handlePrint = async () => {
     if (autoTimelapse) {
       try {
-        await api.timelapseStartSession(`print_${Date.now()}`);
+        const stem = (file.filename || "print")
+          .replace(/\.[^.]+$/, "")
+          .replace(/[^a-zA-Z0-9._-]/g, "_");
+        const ts = new Date().toISOString().replace(/[-:]/g, "").replace(/\..*$/, "").replace("T", "_");
+        await api.timelapseStartSession(`${stem}_${ts}`);
       } catch {
         // Ignore when an active session already exists.
       }

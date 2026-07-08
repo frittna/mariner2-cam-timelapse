@@ -67,7 +67,7 @@ def session_start():
         return jsonify({"error": "Timelapse not initialized"}), 503
 
     payload = request.get_json(silent=True) or {}
-    session_id = payload.get("session_id") or f"session_{int(time.time())}"
+    session_id = payload.get("session_id") or time.strftime("%Y%m%d_%H%M%S")
     started_id = worker.start_session(session_id)
     if started_id is None:
         return jsonify({"error": "Session already active or invalid id"}), 409
@@ -143,7 +143,8 @@ def sessions():
     return jsonify(filtered)
 
 
-@timelapse_bp.delete("/sessions/<session_id>")
+@timelapse_bp.route("/sessions/<session_id>", methods=["DELETE", "POST"])
+@timelapse_bp.post("/sessions/<session_id>/delete")
 def delete_session(session_id: str):
     worker = _timelapse_worker
     if worker and worker.current_session_id == session_id:

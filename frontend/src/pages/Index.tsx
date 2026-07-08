@@ -78,7 +78,12 @@ export default function Index() {
       window.localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
 
     if (autoEnabled && prev !== "printing" && status === "printing") {
-      api.timelapseStartSession(`auto_${Date.now()}`).catch(() => {
+      const rawName = data?.selected_file || "auto_print";
+      const stem = rawName
+        .replace(/\.[^.]+$/, "")
+        .replace(/[^a-zA-Z0-9._-]/g, "_");
+      const ts = new Date().toISOString().replace(/[-:]/g, "").replace(/\..*$/, "").replace("T", "_");
+      api.timelapseStartSession(`${stem}_${ts}`).catch(() => {
         // Ignore: session may already exist.
       });
     }
@@ -90,7 +95,7 @@ export default function Index() {
     }
 
     prevStatusRef.current = status;
-  }, [status]);
+  }, [status, data?.selected_file]);
   const printerName =
     document
       .querySelector('meta[name="printer-display-name"]')

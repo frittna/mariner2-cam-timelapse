@@ -215,9 +215,12 @@ export const api = {
 
 
   async timelapseDeleteSession(sessionId: string): Promise<void> {
-    await apiFetch(`/api/timelapse/sessions/${encodeURIComponent(sessionId)}`, {
-      method: "DELETE",
-    });
+    await apiFetch(
+      `/api/timelapse/sessions/${encodeURIComponent(sessionId)}/delete`,
+      {
+        method: "POST",
+      },
+    );
   },
 
   async timelapseDiskSpace(): Promise<TimelapseDiskSpaceResponse> {
