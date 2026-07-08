@@ -43,6 +43,12 @@ export default function Index() {
     refetchInterval: 5000,
   });
 
+  const { data: timelapseStatus } = useQuery({
+    queryKey: ["timelapseStatusSummary"],
+    queryFn: () => api.timelapseStatus(),
+    refetchInterval: 5000,
+  });
+
   const status: PrinterStatus = data ? mapPrinterState(data.state) : "offline";
   const prevStatusRef = useRef<PrinterStatus>("offline");
 
@@ -90,6 +96,11 @@ export default function Index() {
       .querySelector('meta[name="printer-display-name"]')
       ?.getAttribute("content") || undefined;
 
+  const autoTimelapseEnabled =
+    typeof window !== "undefined" &&
+    window.localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
+  const timelapseSessionLabel = timelapseStatus?.session_id ?? "none";
+
   const job = data
     ? {
         fileName: data.selected_file || "",
@@ -114,6 +125,9 @@ export default function Index() {
           {printerName && (
             <p className="text-sm text-muted-foreground">{printerName}</p>
           )}
+          <p className="text-xs text-muted-foreground">
+            Auto Timelapse: {autoTimelapseEnabled ? "ON" : "OFF"} | Session: {timelapseSessionLabel}
+          </p>
         </div>
         <StatusIndicator status={status} />
       </div>
