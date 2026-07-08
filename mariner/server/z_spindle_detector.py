@@ -33,12 +33,12 @@ class ZSpindleDetector:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._last_state: tuple[bool, bool] = (False, False)
-        self._sequence_index = 0
         self._last_transition: Optional[tuple[tuple[bool, bool], tuple[bool, bool]]] = None
         self._last_trigger = 0.0
         self._top_event_count = 0
         self._last_top_detected_at: Optional[float] = None
         self._last_event_simulated = False
+        self._last_direction: Optional[int] = None  # 1=up, -1=down, None=unknown
 
     @property
     def is_running(self) -> bool:
@@ -80,7 +80,7 @@ class ZSpindleDetector:
         if normalized not in {"A", "B"}:
             normalized = "A"
         self.top_entry_sensor = normalized
-        self._sequence_index = 0
+        self._last_direction = None
         return self.top_entry_sensor
 
     def _read_state(self) -> tuple[bool, bool]:
@@ -103,7 +103,7 @@ class ZSpindleDetector:
     def _monitor_loop(self) -> None:
         while self._running:
             new_state = self._read_state()
-            if self._advance_sequence(new_state):
+            if self._check_direction_change(new_state):
                 now = time.monotonic()
                 if now - self._last_trigger >= self.debounce_seconds:
                     self._trigger()
@@ -112,28 +112,42 @@ class ZSpindleDetector:
             self._last_state = new_state
             time.sleep(0.01)
 
-    def _get_expected_sequence(self) -> tuple[tuple[bool, bool], ...]:
+    def _infer_direction(self, state: tuple[bool, bool]) -> Optional[int]:
+        """
+        Infer rotation direction from sensor state.
+        With 180° offset + 50/50 marker:
+        - Moving up: should see A or B entering (sensor enters bright mark first)
+        - Moving down: should see the opposite sensor entering
+        
+        Returns: 1 for up, -1 for down, None if unclear
+        """
+        a, b = state
+        
         if self.top_entry_sensor == "A":
-            return ((False, False), (True, False), (True, True), (False, True), (False, False))
-        return ((False, False), (False, True), (True, True), (True, False), (False, False))
+            if a and not b:
+                return 1
+            elif b and not a:
+                return -1
+        else:
+            if b and not a:
+                return 1
+            elif a and not b:
+                return -1
+        
+        return None
 
-    def _advance_sequence(self, new_state: tuple[bool, bool]) -> bool:
-        sequence = self._get_expected_sequence()
-        expected = sequence[self._sequence_index]
-
-        if new_state == expected:
-            self._sequence_index += 1
-            if self._sequence_index >= len(sequence):
-                self._sequence_index = 0
-                return True
+    def _check_direction_change(self, new_state: tuple[bool, bool]) -> bool:
+        direction = self._infer_direction(new_state)
+        
+        if direction is None:
             return False
-
-        if new_state == sequence[0]:
-            self._sequence_index = 1
-            return False
-
-        self._sequence_index = 0
-        return False
+        
+        triggered = False
+        if self._last_direction == 1 and direction == -1:
+            triggered = True
+        
+        self._last_direction = direction
+        return triggered
 
     def get_status(self) -> dict:
         sensor_a, sensor_b = self._read_state()
@@ -152,7 +166,7 @@ class ZSpindleDetector:
             "top_entry_sensor": self.top_entry_sensor,
             "invert": self.top_entry_sensor == "B",
             "last_state": list(self._last_state),
-            "sequence_index": self._sequence_index,
+            "last_direction": self._last_direction,
             "last_transition": (
                 {
                     "from": list(self._last_transition[0]),
@@ -179,3 +193,4 @@ class ZSpindleDetector:
             logger.exception("Z-top callback failed")
         finally:
             threading.Timer(0.15, lambda: self._set_led(False)).start()
+
