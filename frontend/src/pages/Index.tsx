@@ -1,4 +1,4 @@
-﻿import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PrintProgress } from "@/components/PrintProgress";
 import { PrintControls } from "@/components/PrintControls";
 import { StatusIndicator } from "@/components/StatusIndicator";
@@ -6,7 +6,9 @@ import { api, mapPrinterState, type PrinterStatus } from "@/lib/api";
 import { WifiOff, CheckCircle2, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+const AUTO_TIMELAPSE_KEY = "mariner_auto_timelapse_on_start";
 
 export default function Index() {
   const queryClient = useQueryClient();
@@ -42,6 +44,7 @@ export default function Index() {
   });
 
   const status: PrinterStatus = data ? mapPrinterState(data.state) : "offline";
+  const prevStatusRef = useRef<PrinterStatus>("offline");
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ["printStatus"] });
@@ -61,6 +64,27 @@ export default function Index() {
     refresh();
   };
 
+
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const autoEnabled =
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
+
+    if (autoEnabled && prev !== "printing" && status === "printing") {
+      api.timelapseStartSession(`auto_${Date.now()}`).catch(() => {
+        // Ignore: session may already exist.
+      });
+    }
+
+    if (autoEnabled && prev === "printing" && status !== "printing" && status !== "paused") {
+      api.timelapseEndSession().catch(() => {
+        // Ignore: no session or backend unavailable.
+      });
+    }
+
+    prevStatusRef.current = status;
+  }, [status]);
   const printerName =
     document
       .querySelector('meta[name="printer-display-name"]')
@@ -278,4 +302,5 @@ export default function Index() {
     </div>
   );
 }
+
 

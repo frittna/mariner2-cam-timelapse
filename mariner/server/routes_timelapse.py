@@ -134,9 +134,24 @@ def sessions():
     worker = _timelapse_worker
     active = worker.current_session_id if worker else None
     data = TimelapseManager.list_sessions()
+    filtered = []
     for item in data:
-        item["active"] = item["session_id"] == active
-    return jsonify(data)
+        is_active = item["session_id"] == active
+        if item.get("frame_count", 0) > 0 or is_active:
+            item["active"] = is_active
+            filtered.append(item)
+    return jsonify(filtered)
+
+
+@timelapse_bp.delete("/sessions/<session_id>")
+def delete_session(session_id: str):
+    worker = _timelapse_worker
+    if worker and worker.current_session_id == session_id:
+        return jsonify({"error": "Cannot delete active session"}), 409
+
+    if TimelapseManager.cleanup_frames(session_id):
+        return jsonify({"status": "deleted", "session_id": session_id})
+    return jsonify({"error": "Session not found"}), 404
 
 
 @timelapse_bp.delete("/videos/<filename>")

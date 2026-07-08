@@ -213,6 +213,13 @@ export const api = {
     });
   },
 
+
+  async timelapseDeleteSession(sessionId: string): Promise<void> {
+    await apiFetch(`/api/timelapse/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE",
+    });
+  },
+
   async timelapseDiskSpace(): Promise<TimelapseDiskSpaceResponse> {
     return apiFetch<TimelapseDiskSpaceResponse>("/api/timelapse/disk-space");
   },

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Film, Loader2, Trash2 } from "lucide-react";
 
@@ -40,6 +40,8 @@ export default function Timelapse() {
   const [activeThemeId, setActiveThemeId] = useState(getStoredThemeId);
   const [keepSessionById, setKeepSessionById] = useState<Record<string, boolean>>({});
   const [activeRenderKey, setActiveRenderKey] = useState<string | null>(null);
+  const [confirmDeleteVideo, setConfirmDeleteVideo] = useState<string | null>(null);
+  const [confirmDeleteSession, setConfirmDeleteSession] = useState<string | null>(null);
 
   const { data: status } = useQuery({
     queryKey: ["timelapse-status"],
@@ -161,6 +163,15 @@ export default function Timelapse() {
     },
   });
 
+
+  const deleteSessionMutation = useMutation({
+    mutationFn: (sessionId: string) => api.timelapseDeleteSession(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["timelapse-sessions"] });
+      setConfirmDeleteSession(null);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
   const deleteMutation = useMutation({
     mutationFn: (filename: string) => api.timelapseDeleteVideo(filename),
     onSuccess: () => {
@@ -337,6 +348,9 @@ export default function Timelapse() {
                           {session.frame_count} frames
                         </div>
                       </div>
+
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => toggleKeepSession(session.session_id)}
@@ -363,8 +377,27 @@ export default function Timelapse() {
                           />
                         </span>
                       </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirmDeleteSession !== session.session_id) {
+                            setConfirmDeleteSession(session.session_id);
+                            return;
+                          }
+                          deleteSessionMutation.mutate(session.session_id);
+                        }}
+                        disabled={deleteSessionMutation.isPending || session.active}
+                        className={cn(
+                          "rounded-md border px-3 py-1.5 text-xs transition-colors",
+                          confirmDeleteSession === session.session_id
+                            ? "border-destructive/60 bg-destructive/10 text-destructive"
+                            : "border-border bg-muted text-foreground hover:border-primary hover:bg-primary/10",
+                          session.active && "opacity-50 cursor-not-allowed",
+                        )}
+                      >
+                        {confirmDeleteSession === session.session_id ? "Delete session?" : "Delete session"}
+                      </button>
+
                       {RENDER_PRESETS.map((preset) => {
                         const key = `${session.session_id}:${preset.value}`;
                         const isActive = activeRenderKey === key && renderSessionMutation.isPending;
@@ -426,10 +459,16 @@ export default function Timelapse() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => deleteMutation.mutate(video.filename)}
+                      onClick={() => {
+                        if (confirmDeleteVideo !== video.filename) {
+                          setConfirmDeleteVideo(video.filename);
+                          return;
+                        }
+                        deleteMutation.mutate(video.filename);
+                      }}
                       disabled={deleteMutation.isPending}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      {confirmDeleteVideo === video.filename ? "Delete?" : <Trash2 className="h-3.5 w-3.5" />}
                     </Button>
                   </div>
                 </div>
@@ -566,3 +605,4 @@ export default function Timelapse() {
     </div>
   );
 }
+

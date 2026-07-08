@@ -1,3 +1,4 @@
+﻿import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
@@ -11,12 +12,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Play, Layers, Clock, Ruler, Trash2 } from "lucide-react";
 import { api, formatTime, type FileEntry } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface FileDetailDialogProps {
   file: FileEntry | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const AUTO_TIMELAPSE_KEY = "mariner_auto_timelapse_on_start";
 
 export function FileDetailDialog({
   file,
@@ -25,6 +29,11 @@ export function FileDetailDialog({
 }: FileDetailDialogProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [autoTimelapse, setAutoTimelapse] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
+  });
 
   const { data: details } = useQuery({
     queryKey: ["fileDetails", file?.path],
@@ -34,20 +43,46 @@ export function FileDetailDialog({
 
   if (!file) return null;
 
+  const setAuto = (value: boolean) => {
+    setAutoTimelapse(value);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(AUTO_TIMELAPSE_KEY, value ? "1" : "0");
+    }
+  };
+
   const handlePrint = async () => {
+    if (autoTimelapse) {
+      try {
+        await api.timelapseStartSession(`print_${Date.now()}`);
+      } catch {
+        // Ignore when an active session already exists.
+      }
+    }
     await api.printerCommand("start_print", file.path);
     onOpenChange(false);
     navigate("/");
   };
 
   const handleDelete = async () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
     await api.deleteFile(file.path);
     onOpenChange(false);
+    setConfirmDelete(false);
     queryClient.invalidateQueries({ queryKey: ["files"] });
   };
 
+  const resetState = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setConfirmDelete(false);
+    }
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={resetState}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="break-all font-mono text-base">
@@ -60,7 +95,6 @@ export function FileDetailDialog({
 
         {file.can_be_printed && (
           <>
-            {/* Layer preview */}
             <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-md border bg-muted">
               <img
                 src={api.filePreviewUrl(file.path)}
@@ -73,7 +107,6 @@ export function FileDetailDialog({
               />
             </div>
 
-            {/* Metadata */}
             {details && (
               <div className="grid grid-cols-3 gap-3">
                 <MetaItem
@@ -96,14 +129,46 @@ export function FileDetailDialog({
           </>
         )}
 
+        {file.can_be_printed && (
+          <div className="flex items-center justify-end gap-2 text-xs">
+            <span className="text-muted-foreground">Auto Timelapse</span>
+            <button
+              type="button"
+              onClick={() => setAuto(!autoTimelapse)}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 transition-colors",
+                autoTimelapse
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-background text-muted-foreground",
+              )}
+              aria-pressed={autoTimelapse}
+            >
+              <span>{autoTimelapse ? "ON" : "OFF"}</span>
+              <span
+                className={cn(
+                  "relative h-5 w-9 rounded-full transition-colors",
+                  autoTimelapse ? "bg-primary" : "bg-muted",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+                    autoTimelapse ? "translate-x-4" : "translate-x-0",
+                  )}
+                />
+              </span>
+            </button>
+          </div>
+        )}
+
         <DialogFooter className="gap-2 sm:gap-0">
           <Button
-            variant="ghost"
+            variant={confirmDelete ? "destructive" : "ghost"}
             className="gap-2 text-muted-foreground"
             onClick={handleDelete}
           >
             <Trash2 className="h-4 w-4" />
-            Delete
+            {confirmDelete ? "Confirm Delete?" : "Delete"}
           </Button>
           {file.can_be_printed && (
             <Button className="gap-2" onClick={handlePrint}>
