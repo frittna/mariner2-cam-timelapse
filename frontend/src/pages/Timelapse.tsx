@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Film, Loader2, Trash2 } from "lucide-react";
 
@@ -26,16 +26,20 @@ const unitOptions: Array<{ value: TemperatureUnit; label: string }> = [
 ];
 
 const tempBands = [
-  { label: "Cool", range: "Below 20 °C", sample: 18 },
-  { label: "Normal", range: "20-35 °C", sample: 25 },
-  { label: "Hot", range: "35-40 °C", sample: 36 },
-  { label: "Alert", range: "Above 40 °C", sample: 43 },
+  { label: "Cool", range: "Below 20 C", sample: 18 },
+  { label: "Normal", range: "20-35 C", sample: 25 },
+  { label: "Hot", range: "35-40 C", sample: 36 },
+  { label: "Alert", range: "Above 40 C", sample: 43 },
 ];
+
+type RenderPreset = (typeof RENDER_PRESETS)[number]["value"];
 
 export default function Timelapse() {
   const queryClient = useQueryClient();
   const { unit, setUnit } = useTemperatureUnit();
   const [activeThemeId, setActiveThemeId] = useState(getStoredThemeId);
+  const [keepSessionById, setKeepSessionById] = useState<Record<string, boolean>>({});
+  const [activeRenderKey, setActiveRenderKey] = useState<string | null>(null);
 
   const { data: status } = useQuery({
     queryKey: ["timelapse-status"],
@@ -52,6 +56,12 @@ export default function Timelapse() {
   const { data: videos = [], isLoading: videosLoading } = useQuery({
     queryKey: ["timelapse-videos"],
     queryFn: api.timelapseListVideos,
+    refetchInterval: 5000,
+  });
+
+  const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
+    queryKey: ["timelapse-sessions"],
+    queryFn: api.timelapseListSessions,
     refetchInterval: 5000,
   });
 
@@ -82,6 +92,7 @@ export default function Timelapse() {
     onSuccess: () => {
       toast.success("Timelapse started.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
+      queryClient.invalidateQueries({ queryKey: ["timelapse-sessions"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -92,6 +103,7 @@ export default function Timelapse() {
       toast.success("Timelapse stopped.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
       queryClient.invalidateQueries({ queryKey: ["timelapse-videos"] });
+      queryClient.invalidateQueries({ queryKey: ["timelapse-sessions"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -101,6 +113,7 @@ export default function Timelapse() {
     onSuccess: () => {
       toast.success("Test frame queued.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
+      queryClient.invalidateQueries({ queryKey: ["timelapse-sessions"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -114,6 +127,7 @@ export default function Timelapse() {
           : "Z trigger detected, but no session is active.",
       );
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
+      queryClient.invalidateQueries({ queryKey: ["timelapse-sessions"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -127,28 +141,24 @@ export default function Timelapse() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const profile = profileData?.active ?? "HIGH";
-  const detector = status?.detector;
-  const profileDetails = profileData?.profiles;
-  const renderSessionId = status?.session_id ?? status?.last_session_id;
-  const mutationPending =
-    startSessionMutation.isPending ||
-    endSessionMutation.isPending ||
-    captureMutation.isPending ||
-    triggerTestMutation.isPending ||
-    setDetectorInvertMutation.isPending;
-
-  const renderMutation = useMutation({
-    mutationFn: (preset: "smooth_60fps" | "normal_30fps" | "cinematic_25fps") => {
-      if (!renderSessionId) throw new Error("No session ID available.");
-      return api.timelapseRender(renderSessionId, preset);
-    },
-    onSuccess: () => {
-      toast.success("Timelapse rendered.");
+  const renderSessionMutation = useMutation({
+    mutationFn: ({ sessionId, preset, keepSession }: { sessionId: string; preset: RenderPreset; keepSession: boolean }) =>
+      api.timelapseRender(sessionId, preset, { keepSession }),
+    onSuccess: (_, vars) => {
+      toast.success(
+        vars.keepSession
+          ? "Rendered. Session kept."
+          : "Rendered. Session converted to video.",
+      );
       queryClient.invalidateQueries({ queryKey: ["timelapse-videos"] });
       queryClient.invalidateQueries({ queryKey: ["timelapse-disk"] });
+      queryClient.invalidateQueries({ queryKey: ["timelapse-sessions"] });
+      setActiveRenderKey(null);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      setActiveRenderKey(null);
+      toast.error(err.message);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -160,10 +170,40 @@ export default function Timelapse() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const profile = profileData?.active ?? "HIGH";
+  const detector = status?.detector;
+  const profileDetails = profileData?.profiles;
+  const mutationPending =
+    startSessionMutation.isPending ||
+    endSessionMutation.isPending ||
+    captureMutation.isPending ||
+    triggerTestMutation.isPending ||
+    setDetectorInvertMutation.isPending;
+
+  const anySession = sessions.length > 0;
+
   function formatSensorState(value: boolean | undefined) {
     if (value === undefined) return "n/a";
     return value ? "HIGH" : "LOW";
   }
+
+  function toggleKeepSession(sessionId: string) {
+    setKeepSessionById((prev) => ({ ...prev, [sessionId]: !prev[sessionId] }));
+  }
+
+  function renderSession(sessionId: string, preset: RenderPreset) {
+    const keep = Boolean(keepSessionById[sessionId]);
+    setActiveRenderKey(`${sessionId}:${preset}`);
+    renderSessionMutation.mutate({ sessionId, preset, keepSession: keep });
+  }
+
+  const itemsLoading = sessionsLoading || videosLoading;
+
+  const listRows = useMemo(() => {
+    const sessionRows = sessions.map((s) => ({ type: "session" as const, data: s }));
+    const videoRows = videos.map((v) => ({ type: "video" as const, data: v }));
+    return [...sessionRows, ...videoRows];
+  }, [sessions, videos]);
 
   useEffect(() => {
     applyTheme(activeThemeId);
@@ -271,84 +311,139 @@ export default function Timelapse() {
       </div>
 
       <div className="rounded-lg border bg-card">
-        {videosLoading ? (
+        {itemsLoading ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
-        ) : videos.length === 0 ? (
+        ) : listRows.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
             <Film className="mx-auto mb-2 h-8 w-8 opacity-40" />
-            No timelapse videos yet.
+            No sessions or timelapse videos yet.
           </div>
         ) : (
           <div className="divide-y">
-            {videos.map((video) => (
-              <div key={video.filename} className="flex items-center justify-between p-3">
-                <div className="min-w-0">
-                  <div className="truncate font-mono text-sm">{video.filename}</div>
-                  <div className="text-xs text-muted-foreground">{video.size_mb} MB</div>
+            {listRows.map((row) => {
+              if (row.type === "session") {
+                const session = row.data;
+                const keep = Boolean(keepSessionById[session.session_id]);
+                return (
+                  <div key={`session-${session.session_id}`} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-mono text-sm">
+                          Session: {session.session_id}{session.active ? " (active)" : ""}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {session.frame_count} frames
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleKeepSession(session.session_id)}
+                        className={cn(
+                          "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                          keep
+                            ? "border-primary/40 bg-primary/10 text-primary"
+                            : "border-border bg-background text-muted-foreground",
+                        )}
+                        aria-pressed={keep}
+                      >
+                        <span>Keep session</span>
+                        <span
+                          className={cn(
+                            "relative h-5 w-9 rounded-full transition-colors",
+                            keep ? "bg-primary" : "bg-muted",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+                              keep ? "translate-x-4" : "translate-x-0",
+                            )}
+                          />
+                        </span>
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {RENDER_PRESETS.map((preset) => {
+                        const key = `${session.session_id}:${preset.value}`;
+                        const isActive = activeRenderKey === key && renderSessionMutation.isPending;
+                        return (
+                          <button
+                            key={preset.value}
+                            type="button"
+                            onClick={() => renderSession(session.session_id, preset.value)}
+                            disabled={renderSessionMutation.isPending}
+                            className={cn(
+                              "rounded-md border px-3 py-1.5 text-xs transition-colors",
+                              "border-border bg-muted text-foreground",
+                              "hover:border-primary hover:bg-primary/10",
+                              isActive && "bg-muted-foreground/20 text-foreground",
+                              renderSessionMutation.isPending && !isActive && "opacity-70",
+                            )}
+                          >
+                            Render {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              const video = row.data;
+              return (
+                <div key={`video-${video.filename}`} className="flex items-center justify-between p-3">
+                  <div className="min-w-0">
+                    <div className="truncate font-mono text-sm">{video.filename}</div>
+                    <div className="text-xs text-muted-foreground">{video.size_mb} MB</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        window.open(
+                          `/api/timelapse/videos/${encodeURIComponent(video.filename)}`,
+                          "_blank",
+                        )
+                      }
+                    >
+                      Open
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        window.open(
+                          `/api/timelapse/videos/${encodeURIComponent(video.filename)}?download=1`,
+                          "_blank",
+                        )
+                      }
+                    >
+                      Download
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => deleteMutation.mutate(video.filename)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      window.open(
-                        `/api/timelapse/videos/${encodeURIComponent(video.filename)}`,
-                        "_blank",
-                      )
-                    }
-                  >
-                    Open
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      window.open(
-                        `/api/timelapse/videos/${encodeURIComponent(video.filename)}?download=1`,
-                        "_blank",
-                      )
-                    }
-                  >
-                    Download
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => deleteMutation.mutate(video.filename)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      <div className="rounded-lg border bg-card p-4 space-y-3">
-        <div className="text-sm font-medium">Video Rendering</div>
-        <div className="flex flex-wrap gap-2">
-          {RENDER_PRESETS.map((preset) => (
-            <Button
-              key={preset.value}
-              size="sm"
-              onClick={() => renderMutation.mutate(preset.value)}
-              disabled={renderMutation.isPending || !renderSessionId}
-            >
-              {preset.label}
-            </Button>
-          ))}
+      {!anySession ? (
+        <div className="text-xs text-muted-foreground px-1">
+          No closed sessions available, so no render buttons are shown.
         </div>
-        <div className="text-xs text-muted-foreground">
-          Rendering uses the current session or the latest finished one. Quality comes from the global cam stream.
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Disk: {disk ? `${disk.free_gb.toFixed(1)} GB free` : "..."}
-        </div>
-      </div>
+      ) : null}
 
       <div className="rounded-lg border bg-card p-4 space-y-4">
         <div className="text-sm font-medium">Sensors</div>
@@ -394,7 +489,7 @@ export default function Timelapse() {
               <span
                 className={cn(
                   "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
-                   detector?.invert ? "translate-x-4" : "translate-x-0",
+                  detector?.invert ? "translate-x-4" : "translate-x-0",
                 )}
               />
             </span>
@@ -468,15 +563,6 @@ export default function Timelapse() {
           </div>
         </div>
       </div>
-
-
     </div>
   );
 }
-
-
-
-
-
-
-

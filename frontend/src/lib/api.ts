@@ -1,4 +1,4 @@
-﻿export type PrinterStatus = "idle" | "printing" | "paused" | "offline";
+export type PrinterStatus = "idle" | "printing" | "paused" | "offline";
 
 export interface PrintStatusResponse {
   state: string;
@@ -42,6 +42,14 @@ export interface TimelapseVideoEntry {
   size_mb: number;
   created_at: string;
   modified_at: string;
+}
+
+export interface TimelapseSessionEntry {
+  session_id: string;
+  frame_count: number;
+  created_at: string;
+  modified_at: string;
+  active: boolean;
 }
 
 export interface TimelapseDiskSpaceResponse {
@@ -195,6 +203,10 @@ export const api = {
     return apiFetch<TimelapseVideoEntry[]>("/api/timelapse/videos");
   },
 
+  async timelapseListSessions(): Promise<TimelapseSessionEntry[]> {
+    return apiFetch<TimelapseSessionEntry[]>("/api/timelapse/sessions");
+  },
+
   async timelapseDeleteVideo(filename: string): Promise<void> {
     await apiFetch(`/api/timelapse/videos/${encodeURIComponent(filename)}`, {
       method: "DELETE",
@@ -208,7 +220,7 @@ export const api = {
   async timelapseRender(
     sessionId: string,
     preset: "smooth_60fps" | "normal_30fps" | "cinematic_25fps",
-    outputName?: string,
+    options?: { outputName?: string; keepSession?: boolean },
   ): Promise<TimelapseRenderResponse> {
     return apiFetch<TimelapseRenderResponse>("/api/timelapse/render", {
       method: "POST",
@@ -216,7 +228,8 @@ export const api = {
       body: JSON.stringify({
         session_id: sessionId,
         preset,
-        output_name: outputName,
+        output_name: options?.outputName,
+        keep_session: Boolean(options?.keepSession),
       }),
     });
   },

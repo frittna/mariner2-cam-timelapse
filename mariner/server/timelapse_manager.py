@@ -1,4 +1,4 @@
-﻿import json
+import json
 import shutil
 import subprocess
 from datetime import datetime
@@ -48,6 +48,30 @@ class TimelapseManager:
                 {
                     "filename": path.name,
                     "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                    "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                }
+            )
+        return output
+
+
+    @staticmethod
+    def list_sessions() -> list[dict]:
+        if not SESSIONS_DIR.exists():
+            return []
+
+        output = []
+        for path in sorted(
+            [p for p in SESSIONS_DIR.iterdir() if p.is_dir()],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        ):
+            frames = len(list(path.glob("frame_*.jpg")))
+            stat = path.stat()
+            output.append(
+                {
+                    "session_id": path.name,
+                    "frame_count": frames,
                     "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat(),
                     "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                 }
@@ -246,4 +270,5 @@ class TimelapseManager:
             "current_storage_mb": round(total_size / (1024 * 1024), 2),
             "removed_files": removed,
         }
+
 

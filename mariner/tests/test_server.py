@@ -528,6 +528,11 @@ class MarinerServerTest(TestCase):
         expect("pending_frames" in body).to_equal(True)
         expect(isinstance(body["pending_frames"], int)).to_equal(True)
 
+    def test_timelapse_sessions_endpoint(self) -> None:
+        response = self.client.get("/api/timelapse/sessions")
+        expect(response.status_code).to_equal(200)
+        body = response.get_json()
+        expect(isinstance(body, list)).to_equal(True)
     def test_timelapse_profiles_endpoint(self) -> None:
         response = self.client.get("/api/timelapse/profiles")
         expect(response.status_code).to_equal(200)
@@ -541,6 +546,7 @@ class MarinerServerTest(TestCase):
         body = response.get_json()
         expect(body["status"]).to_equal("triggered")
         expect("detector" in body).to_equal(True)
+
 
 
 

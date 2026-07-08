@@ -1,4 +1,4 @@
-﻿import os
+import os
 import time
 from typing import Optional
 
@@ -104,6 +104,7 @@ def render():
     session_id = payload.get("session_id")
     preset = payload.get("preset", "normal_30fps")
     output_name = payload.get("output_name")
+    keep_session = bool(payload.get("keep_session", False))
     if not session_id:
         return jsonify({"error": "session_id required"}), 400
 
@@ -117,14 +118,25 @@ def render():
     if not video:
         return jsonify({"error": "Render failed"}), 500
 
-    TimelapseManager.cleanup_frames(session_id)
+    if not keep_session:
+        TimelapseManager.cleanup_frames(session_id)
     TimelapseManager.enforce_fifo()
-    return jsonify(video)
+    return jsonify({**video, "keep_session": keep_session})
 
 
 @timelapse_bp.get("/videos")
 def videos():
     return jsonify(TimelapseManager.list_videos())
+
+
+@timelapse_bp.get("/sessions")
+def sessions():
+    worker = _timelapse_worker
+    active = worker.current_session_id if worker else None
+    data = TimelapseManager.list_sessions()
+    for item in data:
+        item["active"] = item["session_id"] == active
+    return jsonify(data)
 
 
 @timelapse_bp.delete("/videos/<filename>")
