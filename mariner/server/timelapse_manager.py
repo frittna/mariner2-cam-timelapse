@@ -136,6 +136,21 @@ class TimelapseManager:
         cls.save_settings(settings)
         return normalized
 
+    @classmethod
+    def get_trigger_mode(cls, default: str = "z_top") -> str:
+        mode = str(cls.load_settings().get("trigger_mode", default)).lower()
+        return mode if mode in {"z_top", "uv_light"} else default
+
+    @classmethod
+    def set_trigger_mode(cls, mode: str) -> str:
+        normalized = mode.lower()
+        if normalized not in {"z_top", "uv_light"}:
+            normalized = "z_top"
+        settings = cls.load_settings()
+        settings["trigger_mode"] = normalized
+        cls.save_settings(settings)
+        return normalized
+
     @staticmethod
     def write_session_metadata(session_id: str, metadata: dict) -> None:
         session_dir = SESSIONS_DIR / session_id
@@ -168,6 +183,28 @@ class TimelapseManager:
             "used_percent": round((used_gb / total_gb) * 100, 1),
         }
 
+    @staticmethod
+    def _normalize_frame_sequence(session_dir: Path) -> int:
+        frames = sorted(session_dir.glob("frame_*.jpg"), key=lambda p: p.name)
+        if not frames:
+            return 0
+
+        staged: list[tuple[Path, Path]] = []
+        renamed = 0
+        for idx, current in enumerate(frames, start=1):
+            expected_name = f"frame_{idx:06d}.jpg"
+            if current.name == expected_name:
+                continue
+            temp = session_dir / f"_renumber_{idx:06d}.jpg"
+            current.replace(temp)
+            staged.append((temp, session_dir / expected_name))
+            renamed += 1
+
+        for temp, final in staged:
+            temp.replace(final)
+
+        return renamed
+
     @classmethod
     def render_video(
         cls,
@@ -179,6 +216,7 @@ class TimelapseManager:
         if not session_dir.exists():
             return None
 
+        cls._normalize_frame_sequence(session_dir)
         frame_count = len(list(session_dir.glob("frame_*.jpg")))
         if frame_count == 0:
             return None

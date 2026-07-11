@@ -9,10 +9,21 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
 
 const AUTO_TIMELAPSE_KEY = "mariner_auto_timelapse_on_start";
+const AUTO_TIMELAPSE_EVENT = "mariner:auto-timelapse-changed";
 
 export default function Index() {
   const queryClient = useQueryClient();
   type CamSize = 'MAX' | 'MID' | 'MIN' | 'HIDE';
+  const shortenMiddle = (value: string, max = 56) => {
+    if (value.length <= max) return value;
+    const keep = Math.max(8, Math.floor((max - 3) / 2));
+    return `${value.slice(0, keep)}...${value.slice(-keep)}`;
+  };
+
+  const [autoTimelapseEnabled, setAutoTimelapseEnabled] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
+  });
 
   const [camSize, setCamSize] = useState<CamSize>(() => {
     if (typeof window !== 'undefined') {
@@ -47,6 +58,12 @@ export default function Index() {
     queryKey: ["timelapseStatusSummary"],
     queryFn: () => api.timelapseStatus(),
     refetchInterval: 5000,
+  });
+
+  const { data: timelapseDisk } = useQuery({
+    queryKey: ["timelapseDiskSummary"],
+    queryFn: () => api.timelapseDiskSpace(),
+    refetchInterval: 30000,
   });
 
   const status: PrinterStatus = data ? mapPrinterState(data.state) : "offline";
@@ -101,10 +118,28 @@ export default function Index() {
       .querySelector('meta[name="printer-display-name"]')
       ?.getAttribute("content") || undefined;
 
-  const autoTimelapseEnabled =
-    typeof window !== "undefined" &&
-    window.localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
   const timelapseSessionLabel = timelapseStatus?.session_id ?? "none";
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncAutoTimelapse = () => {
+      setAutoTimelapseEnabled(
+        window.localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1",
+      );
+    };
+
+    syncAutoTimelapse();
+    window.addEventListener("storage", syncAutoTimelapse);
+    window.addEventListener(AUTO_TIMELAPSE_EVENT, syncAutoTimelapse);
+
+    return () => {
+      window.removeEventListener("storage", syncAutoTimelapse);
+      window.removeEventListener(AUTO_TIMELAPSE_EVENT, syncAutoTimelapse);
+    };
+  }, []);
 
   const job = data
     ? {
@@ -132,6 +167,7 @@ export default function Index() {
           )}
           <p className="text-xs text-muted-foreground">
             Auto Timelapse: {autoTimelapseEnabled ? "ON" : "OFF"} | Session: {timelapseSessionLabel}
+            {timelapseDisk ? ` | SD free: ${timelapseDisk.free_gb.toFixed(2)} GB` : ""}
           </p>
         </div>
         <StatusIndicator status={status} />
@@ -288,7 +324,7 @@ export default function Index() {
             boxSizing: 'border-box'
           }}>
             <div style={{ fontSize: '13px', color: '#aaa', fontWeight: 'bold' }}>
-              Model-Preview: <span style={{ color: '#00b4d8' }}>{job.fileName}</span>
+              Model-Preview: <span style={{ color: '#00b4d8' }} title={job.fileName}>{shortenMiddle(job.fileName)}</span>
             </div>
           </div>
 

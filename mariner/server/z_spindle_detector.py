@@ -1,4 +1,3 @@
-﻿# filepath: c:\Mariner2\mariner-timelapse\mariner\server\z_spindle_detector.py
 import logging
 import threading
 import time
@@ -19,7 +18,7 @@ class ZSpindleDetector:
         sensor_a_pin: int = 17,
         sensor_b_pin: int = 27,
         led_pin: int = 4,
-        debounce_ms: int = 120,
+        debounce_ms: int = 15,
         on_top_detected: Optional[Callable[[], None]] = None,
         top_entry_sensor: str = "A",
     ) -> None:
@@ -39,8 +38,9 @@ class ZSpindleDetector:
         self._top_event_count = 0
         self._last_top_detected_at: Optional[float] = None
         self._last_event_simulated = False
-        # None = unknown, "up" = last revolution was upward, "down" = last revolution was downward
         self._last_revolution_direction: Optional[str] = None
+        self._state_lock = threading.Lock()
+        self._use_interrupts = False
 
     @property
     def is_running(self) -> bool:
@@ -50,28 +50,70 @@ class ZSpindleDetector:
         if GPIO is None:
             logger.warning("RPi.GPIO unavailable, Z-spindle detector disabled")
             return False
+
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.sensor_a_pin, GPIO.IN, pull_up_down=GPIO.PUD_OFF)
         GPIO.setup(self.sensor_b_pin, GPIO.IN, pull_up_down=GPIO.PUD_OFF)
         GPIO.setup(self.led_pin, GPIO.OUT, initial=GPIO.LOW)
+        for _pin in (self.sensor_a_pin, self.sensor_b_pin):
+            try:
+                GPIO.remove_event_detect(_pin)
+            except Exception:
+                pass
+
+        self._last_state = self._read_state()
+
+        try:
+            GPIO.add_event_detect(
+                self.sensor_a_pin,
+                GPIO.BOTH,
+                callback=self._on_gpio_edge,
+                bouncetime=2,
+            )
+            GPIO.add_event_detect(
+                self.sensor_b_pin,
+                GPIO.BOTH,
+                callback=self._on_gpio_edge,
+                bouncetime=2,
+            )
+            self._use_interrupts = True
+            logger.info("Z-spindle detector using GPIO interrupts")
+        except Exception:
+            self._use_interrupts = False
+            logger.exception(
+                "GPIO edge detection unavailable, falling back to polling loop"
+            )
+
         return True
 
     def start(self) -> None:
         if self._running:
             return
         self._running = True
-        self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self._thread.start()
+
+        if not self._use_interrupts:
+            self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
+            self._thread.start()
 
     def stop(self) -> None:
         self._running = False
         if self._thread:
             self._thread.join(timeout=2)
+            self._thread = None
+
         self._set_led(False)
 
     def cleanup(self) -> None:
         self.stop()
         if GPIO is not None:
+            if self._use_interrupts:
+                for pin in (self.sensor_a_pin, self.sensor_b_pin):
+                    try:
+                        GPIO.remove_event_detect(pin)
+                    except Exception:
+                        logger.exception(
+                            "Failed removing GPIO edge detection for pin %s", pin
+                        )
             try:
                 GPIO.cleanup([self.sensor_a_pin, self.sensor_b_pin, self.led_pin])
             except Exception:
@@ -102,38 +144,37 @@ class ZSpindleDetector:
         except Exception:
             logger.exception("Failed updating Z-spindle LED")
 
+    def _on_gpio_edge(self, _channel: int) -> None:
+        if not self._running:
+            return
+        with self._state_lock:
+            self._process_state_change(self._read_state())
+
     def _monitor_loop(self) -> None:
         while self._running:
-            new_state = self._read_state()
-            if self._check_direction_change_to_down(new_state):
-                now = time.monotonic()
-                if now - self._last_trigger >= self.debounce_seconds:
-                    self._trigger()
-                    self._last_trigger = now
-            self._last_transition = (self._last_state, new_state)
-            self._last_state = new_state
+            with self._state_lock:
+                self._process_state_change(self._read_state())
             time.sleep(0.01)
 
+    def _process_state_change(self, new_state: tuple[bool, bool]) -> None:
+        if self._check_direction_change_to_down(new_state):
+            now = time.monotonic()
+            if now - self._last_trigger >= self.debounce_seconds:
+                self._trigger()
+                self._last_trigger = now
+        self._last_transition = (self._last_state, new_state)
+        self._last_state = new_state
+
     def _check_direction_change_to_down(self, new_state: tuple[bool, bool]) -> bool:
-        """
-        Detect the moment the spindle changes direction from up to down.
-        Triggers only ONCE when direction changes to downward — not on every downward revolution.
-
-        Each revolution produces exactly one 00->XX edge at its start.
-        - Normal  (top_entry_sensor=A): 00->01 = downward,  00->10 = upward
-        - Inverted (top_entry_sensor=B): 00->10 = downward, 00->01 = upward
-
-        Only trigger when direction was previously "up" (or unknown after upward) and now is "down".
-        """
         if self._last_state != (False, False):
             return False
 
         if self.top_entry_sensor == "A":
             down_start = (False, True)
-            up_start   = (True, False)
+            up_start = (True, False)
         else:
             down_start = (True, False)
-            up_start   = (False, True)
+            up_start = (False, True)
 
         if new_state == up_start:
             self._last_revolution_direction = "up"
@@ -151,6 +192,7 @@ class ZSpindleDetector:
         return {
             "running": self.is_running,
             "gpio_available": GPIO is not None,
+            "interrupt_mode": self._use_interrupts,
             "sensor_a": sensor_a,
             "sensor_b": sensor_b,
             "top_event_count": self._top_event_count,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
@@ -21,6 +21,7 @@ interface FileDetailDialogProps {
 }
 
 const AUTO_TIMELAPSE_KEY = "mariner_auto_timelapse_on_start";
+const AUTO_TIMELAPSE_EVENT = "mariner:auto-timelapse-changed";
 
 export function FileDetailDialog({
   file,
@@ -35,6 +36,24 @@ export function FileDetailDialog({
     return localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
   });
 
+
+  useEffect(() => {
+    if (!confirmDelete) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-confirm-delete='file']")) {
+        return;
+      }
+      setConfirmDelete(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [confirmDelete]);
+
   const { data: details } = useQuery({
     queryKey: ["fileDetails", file?.path],
     queryFn: () => api.fileDetails(file!.path),
@@ -47,10 +66,15 @@ export function FileDetailDialog({
     setAutoTimelapse(value);
     if (typeof window !== "undefined") {
       localStorage.setItem(AUTO_TIMELAPSE_KEY, value ? "1" : "0");
+      window.dispatchEvent(new Event(AUTO_TIMELAPSE_EVENT));
     }
   };
 
   const handlePrint = async () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(AUTO_TIMELAPSE_KEY, autoTimelapse ? "1" : "0");
+      window.dispatchEvent(new Event(AUTO_TIMELAPSE_EVENT));
+    }
     if (autoTimelapse) {
       try {
         const stem = (file.filename || "print")
@@ -170,6 +194,7 @@ export function FileDetailDialog({
             variant={confirmDelete ? "destructive" : "ghost"}
             className="gap-2 text-muted-foreground"
             onClick={handleDelete}
+            data-confirm-delete="file"
           >
             <Trash2 className="h-4 w-4" />
             {confirmDelete ? "Confirm Delete?" : "Delete"}

@@ -86,6 +86,24 @@ export interface TimelapseDetectorStatus {
   last_transition: { from: boolean[]; to: boolean[] } | null;
 }
 
+export interface TimelapseUvDetectorStatus {
+  running: boolean;
+  gpio_available: boolean;
+  interrupt_mode: boolean;
+  sensor_high: boolean;
+  event_count: number;
+  last_detected_at: string | null;
+  pin: number;
+}
+
+export interface TimelapseCaptureSettings {
+  capture_offset_ms: number;
+  event_window_ms: number;
+  buffer_seconds: number;
+  request_timeout_ms: number;
+  grabber_fps: number;
+}
+
 export interface TimelapseStatusResponse {
   ready: boolean;
   recording: boolean;
@@ -93,10 +111,18 @@ export interface TimelapseStatusResponse {
   last_session_id: string | null;
   frame_count: number;
   pending_frames: number;
+  capture_requests_total: number;
+  capture_success_total: number;
+  capture_fail_total: number;
+  capture_settings: TimelapseCaptureSettings;
+  trigger_mode: "z_top" | "uv_light";
   z_detector_running: boolean;
+  uv_detector_running: boolean;
   stream_profile: "HIGH" | "MID" | "LOW";
   restart_required: boolean;
-  detector: TimelapseDetectorStatus | null;
+  detector: TimelapseDetectorStatus | TimelapseUvDetectorStatus | null;
+  detector_z: TimelapseDetectorStatus | null;
+  detector_uv: TimelapseUvDetectorStatus | null;
 }
 
 export interface TimelapseProfileDetails {
@@ -248,6 +274,20 @@ export const api = {
     return apiFetch<TimelapseStatusResponse>("/api/timelapse/status");
   },
 
+  async timelapseCaptureSettings(): Promise<TimelapseCaptureSettings> {
+    return apiFetch<TimelapseCaptureSettings>("/api/timelapse/capture-settings");
+  },
+
+  async timelapseSetCaptureSettings(
+    settings: Partial<TimelapseCaptureSettings>,
+  ): Promise<TimelapseCaptureSettings> {
+    return apiFetch<TimelapseCaptureSettings>("/api/timelapse/capture-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+  },
+
   async timelapseProfiles(): Promise<TimelapseProfilesResponse> {
     return apiFetch<TimelapseProfilesResponse>("/api/timelapse/profiles");
   },
@@ -270,6 +310,19 @@ export const api = {
     return apiFetch<TimelapseDetectorStatus>(
       `/api/timelapse/detector/invert?invert=${value}`,
       { method: "POST" },
+    );
+  },
+
+  async timelapseSetDetectorMode(
+    mode: "z_top" | "uv_light",
+  ): Promise<{ mode: "z_top" | "uv_light" }> {
+    return apiFetch<{ mode: "z_top" | "uv_light" }>(
+      "/api/timelapse/detector/mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      },
     );
   },
 

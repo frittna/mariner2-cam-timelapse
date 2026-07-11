@@ -11,39 +11,102 @@ from mariner.server.timelapse_worker import (
     get_profile_details,
 )
 from mariner.server.z_spindle_detector import ZSpindleDetector
+from mariner.server.uv_light_detector import UVLightDetector
 
 timelapse_bp = Blueprint("timelapse", __name__, url_prefix="/api/timelapse")
 
 _timelapse_worker: Optional[TimelapseWorker] = None
 _z_detector: Optional[ZSpindleDetector] = None
+_uv_detector: Optional[UVLightDetector] = None
+_trigger_mode = "z_top"
 _startup_profile = "HIGH"
 
 
+def _normalize_trigger_mode(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    return normalized if normalized in {"z_top", "uv_light"} else "z_top"
+
+
+def _apply_trigger_mode(mode: str) -> None:
+    global _trigger_mode
+    _trigger_mode = _normalize_trigger_mode(mode)
+
+    if _z_detector is not None:
+        _z_detector.stop()
+    if _uv_detector is not None:
+        _uv_detector.stop()
+
+    if _trigger_mode == "uv_light":
+        if _uv_detector is not None:
+            _uv_detector.start()
+    else:
+        if _z_detector is not None:
+            _z_detector.start()
+
+
+
 def init_timelapse() -> None:
-    global _timelapse_worker, _z_detector, _startup_profile
+    global _timelapse_worker, _z_detector, _uv_detector, _trigger_mode, _startup_profile
     if _timelapse_worker is not None:
         return
 
     configured_profile = os.getenv("MARINER_TIMELAPSE_PROFILE", "HIGH").upper()
     configured_top_sensor = os.getenv("MARINER_Z_TOP_ENTRY_SENSOR", "A").upper()
+    configured_trigger_mode = os.getenv("MARINER_TIMELAPSE_TRIGGER_MODE", "z_top")
+
     profile = TimelapseManager.get_selected_profile(configured_profile)
     top_sensor = TimelapseManager.get_z_top_entry_sensor(configured_top_sensor)
+    trigger_mode = TimelapseManager.get_trigger_mode(configured_trigger_mode)
     _startup_profile = profile
 
     _timelapse_worker = TimelapseWorker(stream_profile=profile)
+    saved_settings = TimelapseManager.load_settings()
+    _timelapse_worker.set_capture_settings(
+        {
+            "capture_offset_ms": saved_settings.get("capture_offset_ms", 120),
+            "event_window_ms": saved_settings.get("event_window_ms", 120),
+            "buffer_seconds": saved_settings.get("buffer_seconds", 2.0),
+            "request_timeout_ms": saved_settings.get("request_timeout_ms", 1000),
+            "grabber_fps": saved_settings.get("grabber_fps", 15),
+        }
+    )
+
     _z_detector = ZSpindleDetector(
         on_top_detected=_timelapse_worker.capture_frame,
         top_entry_sensor=top_sensor,
     )
-    if _z_detector.setup():
-        _z_detector.start()
+    if not _z_detector.setup():
+        _z_detector = None
+
+    _uv_detector = UVLightDetector(
+        sensor_pin=22,
+        on_light_detected=_timelapse_worker.capture_frame,
+    )
+    if not _uv_detector.setup():
+        _uv_detector = None
+
+    _apply_trigger_mode(trigger_mode)
 
 
 @timelapse_bp.get("/status")
 def status():
     worker = _timelapse_worker
-    detector = _z_detector
+    detector = _z_detector if _trigger_mode == "z_top" else _uv_detector
     detector_status = detector.get_status() if detector else None
+    detector_z_status = _z_detector.get_status() if _z_detector else None
+    detector_uv_status = _uv_detector.get_status() if _uv_detector else None
+    capture_counters = worker.get_capture_counters() if worker else {
+        "capture_requests_total": 0,
+        "capture_success_total": 0,
+        "capture_fail_total": 0,
+    }
+    capture_settings = worker.get_capture_settings() if worker else {
+        "capture_offset_ms": 120,
+        "event_window_ms": 120,
+        "buffer_seconds": 2.0,
+        "request_timeout_ms": 1000,
+        "grabber_fps": 15,
+    }
     return jsonify(
         {
             "ready": worker is not None,
@@ -52,10 +115,18 @@ def status():
             "last_session_id": worker.last_session_id if worker else None,
             "frame_count": worker.frame_counter if worker else 0,
             "pending_frames": worker.get_pending_frames() if worker else 0,
-            "z_detector_running": detector.is_running if detector else False,
+            "capture_requests_total": capture_counters["capture_requests_total"],
+            "capture_success_total": capture_counters["capture_success_total"],
+            "capture_fail_total": capture_counters["capture_fail_total"],
+            "capture_settings": capture_settings,
+            "trigger_mode": _trigger_mode,
+            "z_detector_running": bool(_z_detector and _z_detector.is_running),
+            "uv_detector_running": bool(_uv_detector and _uv_detector.is_running),
             "stream_profile": worker.stream_profile if worker else "HIGH",
             "restart_required": False,
             "detector": detector_status,
+            "detector_z": detector_z_status,
+            "detector_uv": detector_uv_status,
         }
     )
 
@@ -222,11 +293,27 @@ def set_profile(profile: str):
     )
 
 
+@timelapse_bp.route("/detector/mode", methods=["GET", "POST"])
+def detector_mode():
+    global _trigger_mode
+    if _timelapse_worker is None:
+        return jsonify({"error": "Timelapse not initialized"}), 503
+
+    if request.method == "GET":
+        return jsonify({"mode": _trigger_mode})
+
+    payload = request.get_json(silent=True) or {}
+    requested = _normalize_trigger_mode(payload.get("mode", _trigger_mode))
+    _apply_trigger_mode(requested)
+    TimelapseManager.set_trigger_mode(_trigger_mode)
+    return jsonify({"mode": _trigger_mode})
+
+
 @timelapse_bp.route("/detector/invert", methods=["GET", "POST"])
 def set_detector_invert():
     detector = _z_detector
     if detector is None:
-        return jsonify({"error": "Timelapse not initialized"}), 503
+        return jsonify({"error": "Z-top detector unavailable"}), 503
 
     payload = request.get_json(silent=True) or {}
     invert_value = payload.get("invert", request.args.get("invert", False))
@@ -239,8 +326,8 @@ def set_detector_invert():
 
 @timelapse_bp.post("/test-trigger")
 def test_trigger():
-    detector = _z_detector
     worker = _timelapse_worker
+    detector = _z_detector if _trigger_mode == "z_top" else _uv_detector
     if detector is None or worker is None:
         return jsonify({"error": "Timelapse not initialized"}), 503
 
@@ -252,6 +339,33 @@ def test_trigger():
             "detector": detector.get_status(),
         }
     )
+
+
+@timelapse_bp.route("/capture-settings", methods=["GET", "POST"])
+def capture_settings():
+    worker = _timelapse_worker
+    if worker is None:
+        return jsonify({"error": "Timelapse not initialized"}), 503
+
+    if request.method == "GET":
+        return jsonify(worker.get_capture_settings())
+
+    payload = request.get_json(silent=True) or {}
+    allowed = {
+        "capture_offset_ms",
+        "event_window_ms",
+        "buffer_seconds",
+        "request_timeout_ms",
+        "grabber_fps",
+    }
+    updates = {k: payload[k] for k in allowed if k in payload}
+    current = worker.set_capture_settings(updates)
+
+    persisted = TimelapseManager.load_settings()
+    persisted.update(current)
+    TimelapseManager.save_settings(persisted)
+
+    return jsonify(current)
 
 
 @timelapse_bp.post("/storage/fifo")

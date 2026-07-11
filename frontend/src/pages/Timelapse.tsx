@@ -42,11 +42,22 @@ export default function Timelapse() {
   const [activeRenderKey, setActiveRenderKey] = useState<string | null>(null);
   const [confirmDeleteVideo, setConfirmDeleteVideo] = useState<string | null>(null);
   const [confirmDeleteSession, setConfirmDeleteSession] = useState<string | null>(null);
+  const [captureOffsetMs, setCaptureOffsetMs] = useState("120");
+  const [eventWindowMs, setEventWindowMs] = useState("120");
+  const [bufferSeconds, setBufferSeconds] = useState("2.0");
+  const [requestTimeoutMs, setRequestTimeoutMs] = useState("1000");
+  const [grabberFps, setGrabberFps] = useState("15");
 
   const { data: status } = useQuery({
     queryKey: ["timelapse-status"],
     queryFn: api.timelapseStatus,
     refetchInterval: 3000,
+  });
+
+  const { data: captureSettings } = useQuery({
+    queryKey: ["timelapse-capture-settings"],
+    queryFn: api.timelapseCaptureSettings,
+    refetchInterval: 5000,
   });
 
   const { data: profileData } = useQuery({
@@ -143,6 +154,38 @@ export default function Timelapse() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const setDetectorModeMutation = useMutation({
+    mutationFn: (mode: "z_top" | "uv_light") => api.timelapseSetDetectorMode(mode),
+    onSuccess: () => {
+      toast.success("Trigger mode updated.");
+      queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const setCaptureSettingsMutation = useMutation({
+    mutationFn: (payload: {
+      captureOffsetMs: number;
+      eventWindowMs: number;
+      bufferSeconds: number;
+      requestTimeoutMs: number;
+      grabberFps: number;
+    }) =>
+      api.timelapseSetCaptureSettings({
+        capture_offset_ms: payload.captureOffsetMs,
+        event_window_ms: payload.eventWindowMs,
+        buffer_seconds: payload.bufferSeconds,
+        request_timeout_ms: payload.requestTimeoutMs,
+        grabber_fps: payload.grabberFps,
+      }),
+    onSuccess: () => {
+      toast.success("Capture timing updated.");
+      queryClient.invalidateQueries({ queryKey: ["timelapse-capture-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const renderSessionMutation = useMutation({
     mutationFn: ({ sessionId, preset, keepSession }: { sessionId: string; preset: RenderPreset; keepSession: boolean }) =>
       api.timelapseRender(sessionId, preset, { keepSession }),
@@ -183,13 +226,19 @@ export default function Timelapse() {
 
   const profile = profileData?.active ?? "HIGH";
   const detector = status?.detector;
+  const triggerMode = status?.trigger_mode ?? "z_top";
+  const isUvMode = triggerMode === "uv_light";
+  const zDetector = status?.detector_z;
+  const uvDetector = status?.detector_uv;
   const profileDetails = profileData?.profiles;
   const mutationPending =
     startSessionMutation.isPending ||
     endSessionMutation.isPending ||
     captureMutation.isPending ||
     triggerTestMutation.isPending ||
-    setDetectorInvertMutation.isPending;
+    setDetectorInvertMutation.isPending ||
+    setDetectorModeMutation.isPending ||
+    setCaptureSettingsMutation.isPending;
 
   const anySession = sessions.length > 0;
 
@@ -220,7 +269,54 @@ export default function Timelapse() {
     applyTheme(activeThemeId);
   }, [activeThemeId]);
 
+  useEffect(() => {
+    if (!captureSettings) {
+      return;
+    }
+    setCaptureOffsetMs(String(captureSettings.capture_offset_ms));
+    setEventWindowMs(String(captureSettings.event_window_ms));
+    setBufferSeconds(String(captureSettings.buffer_seconds));
+    setRequestTimeoutMs(String(captureSettings.request_timeout_ms));
+    setGrabberFps(String(captureSettings.grabber_fps));
+  }, [captureSettings]);
+
+  useEffect(() => {
+    if (!confirmDeleteSession && !confirmDeleteVideo) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest("[data-confirm-delete='session']") ||
+        target?.closest("[data-confirm-delete='video']")
+      ) {
+        return;
+      }
+      setConfirmDeleteSession(null);
+      setConfirmDeleteVideo(null);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [confirmDeleteSession, confirmDeleteVideo]);
+
   const tempC = bmp280?.ok ? bmp280.temp_c : null;
+
+  function applyCaptureSettings() {
+    const parseOr = (value: string, fallback: number) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    setCaptureSettingsMutation.mutate({
+      captureOffsetMs: parseOr(captureOffsetMs, 120),
+      eventWindowMs: parseOr(eventWindowMs, 120),
+      bufferSeconds: parseOr(bufferSeconds, 2),
+      requestTimeoutMs: parseOr(requestTimeoutMs, 1000),
+      grabberFps: parseOr(grabberFps, 15),
+    });
+  }
 
   return (
     <div className="container pt-2 pb-2 space-y-4">
@@ -274,10 +370,13 @@ export default function Timelapse() {
         <div className="text-sm">
           <span className="font-medium">Status:</span>{" "}
           {status?.recording ? "Recording" : "Idle"} |{" "}
-          <span className="font-medium">Z detector:</span>{" "}
-          {status?.z_detector_running ? "active" : "inactive"} |{" "}
+          <span className="font-medium">Trigger mode:</span>{" "}
+          {triggerMode === "uv_light" ? "UV light" : "Z-top"} |{" "}
           <span className="font-medium">Frames:</span> {status?.frame_count ?? 0} |{" "}
-          <span className="font-medium">Queue:</span> {status?.pending_frames ?? 0}
+          <span className="font-medium">Queue:</span> {status?.pending_frames ?? 0} |{" "}
+          <span className="font-medium">Capture req:</span> {status?.capture_requests_total ?? 0} |{" "}
+          <span className="font-medium">OK:</span> {status?.capture_success_total ?? 0} |{" "}
+          <span className="font-medium">Fail:</span> {status?.capture_fail_total ?? 0}
         </div>
         <div className="text-sm">
           <span className="font-medium">Session:</span> {status?.session_id ?? "none"}
@@ -313,11 +412,11 @@ export default function Timelapse() {
             onClick={() => triggerTestMutation.mutate()}
             disabled={mutationPending}
           >
-            Test Z trigger
+            Test trigger
           </Button>
         </div>
         <div className="text-xs text-muted-foreground">
-          Start opens a capture session. Each detected Z-top should queue one frame.
+          Start opens a capture session. Each detected trigger should queue one frame.
         </div>
       </div>
 
@@ -387,6 +486,7 @@ export default function Timelapse() {
                           deleteSessionMutation.mutate(session.session_id);
                         }}
                         disabled={deleteSessionMutation.isPending || session.active}
+                        data-confirm-delete="session"
                         className={cn(
                           "rounded-md border px-3 py-1.5 text-xs transition-colors",
                           confirmDeleteSession === session.session_id
@@ -467,6 +567,7 @@ export default function Timelapse() {
                         deleteMutation.mutate(video.filename);
                       }}
                       disabled={deleteMutation.isPending}
+                      data-confirm-delete="video"
                     >
                       {confirmDeleteVideo === video.filename ? "Delete?" : <Trash2 className="h-3.5 w-3.5" />}
                     </Button>
@@ -483,9 +584,29 @@ export default function Timelapse() {
           No closed sessions available, so no render buttons are shown.
         </div>
       ) : null}
-
       <div className="rounded-lg border bg-card p-4 space-y-4">
         <div className="text-sm font-medium">Sensors</div>
+
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-medium">Trigger source:</span>
+          <Button
+            size="sm"
+            variant={triggerMode === "z_top" ? "default" : "outline"}
+            onClick={() => setDetectorModeMutation.mutate("z_top")}
+            disabled={setDetectorModeMutation.isPending}
+          >
+            Z-top
+          </Button>
+          <Button
+            size="sm"
+            variant={triggerMode === "uv_light" ? "default" : "outline"}
+            onClick={() => setDetectorModeMutation.mutate("uv_light")}
+            disabled={setDetectorModeMutation.isPending}
+          >
+            UV-light (GPIO22)
+          </Button>
+        </div>
+
         <div className="text-sm">
           <span className="font-medium">BMP280:</span>{" "}
           <span className={cn(getTemperatureColorClass(tempC))}>
@@ -494,50 +615,160 @@ export default function Timelapse() {
               : `n/a${bmp280?.error ? ` (${bmp280.error})` : ""}`}
           </span>
         </div>
-        <div className="text-sm">
-          <span className="font-medium">CNY70 A/B:</span>{" "}
-          {detector
-            ? `${formatSensorState(detector.sensor_a)} / ${formatSensorState(detector.sensor_b)}`
-            : "n/a"}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-medium">Top detections:</span> {detector?.top_event_count ?? 0}
-          {detector?.last_top_detected_at
-            ? ` | Last: ${new Date(detector.last_top_detected_at).toLocaleString()}`
-            : ""}
-          {detector?.last_event_simulated ? " | last event was a test trigger" : ""}
-          <button
-            type="button"
-            onClick={() => setDetectorInvertMutation.mutate(!(detector?.invert ?? false))}
-            disabled={setDetectorInvertMutation.isPending}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
-              detector?.invert
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-border bg-background text-muted-foreground",
-            )}
-            aria-pressed={detector?.invert ?? false}
-          >
-            <span>Invert</span>
-            <span
+
+        <div className={cn("space-y-2", isUvMode && "opacity-60")}>
+          <div className="text-sm">
+            <span className="font-medium">CNY70 A/B:</span>{" "}
+            {zDetector
+              ? `${formatSensorState(zDetector.sensor_a)} / ${formatSensorState(zDetector.sensor_b)}`
+              : "n/a"}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-medium">Top detections:</span> {zDetector?.top_event_count ?? 0}
+            {zDetector?.last_top_detected_at
+              ? ` | Last: ${new Date(zDetector.last_top_detected_at).toLocaleString()}`
+              : ""}
+            {zDetector?.last_event_simulated ? " | last event was a test trigger" : ""}
+            <button
+              type="button"
+              onClick={() => setDetectorInvertMutation.mutate(!(zDetector?.invert ?? false))}
+              disabled={setDetectorInvertMutation.isPending || isUvMode}
               className={cn(
-                "relative h-5 w-9 rounded-full transition-colors",
-                detector?.invert ? "bg-primary" : "bg-muted",
+                "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                zDetector?.invert
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-background text-muted-foreground",
               )}
+              aria-pressed={zDetector?.invert ?? false}
             >
+              <span>Invert</span>
               <span
                 className={cn(
-                  "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
-                  detector?.invert ? "translate-x-4" : "translate-x-0",
+                  "relative h-5 w-9 rounded-full transition-colors",
+                  zDetector?.invert ? "bg-primary" : "bg-muted",
                 )}
-              />
-            </span>
-          </button>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          These values are for validating the two CNY70 sensors and the Z trigger logic. Use Invert when top and bottom are swapped.
+              >
+                <span
+                  className={cn(
+                    "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+                    zDetector?.invert ? "translate-x-4" : "translate-x-0",
+                  )}
+                />
+              </span>
+            </button>
+          </div>
+          {isUvMode ? (
+            <div className="text-xs text-muted-foreground">
+              Z-top controls are inactive while UV-light mode is selected.
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">
+              Use Invert when top and bottom are swapped.
+            </div>
+          )}
         </div>
 
+        <div className="text-sm">
+          <span className="font-medium">UV sensor (GPIO22):</span>{" "}
+          {uvDetector
+            ? `${uvDetector.sensor_high ? "HIGH" : "LOW"} | events: ${uvDetector.event_count}`
+            : "n/a"}
+          {uvDetector?.last_detected_at
+            ? ` | Last: ${new Date(uvDetector.last_detected_at).toLocaleString()}`
+            : ""}
+        </div>
+      </div>
+
+      <div className={cn("rounded-lg border bg-card p-4 space-y-3", isUvMode && "opacity-60")}>
+        <div>
+          <div className="text-sm font-medium">Capture Timing (Jitter Tuning)</div>
+          <p className="text-xs text-muted-foreground">
+            Offset is the delay after Z-top before selecting the buffered frame.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="text-xs text-muted-foreground">
+            Offset (ms)
+            <input
+              type="number"
+              min={0}
+              max={2000}
+              step={10}
+              value={captureOffsetMs}
+              onChange={(e) => setCaptureOffsetMs(e.target.value)}
+              disabled={isUvMode}
+              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
+            />
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Event window (ms)
+            <input
+              type="number"
+              min={0}
+              max={2000}
+              step={10}
+              value={eventWindowMs}
+              onChange={(e) => setEventWindowMs(e.target.value)}
+              disabled={isUvMode}
+              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
+            />
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Buffer (s)
+            <input
+              type="number"
+              min={0.2}
+              max={10}
+              step={0.1}
+              value={bufferSeconds}
+              onChange={(e) => setBufferSeconds(e.target.value)}
+              disabled={isUvMode}
+              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
+            />
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Request timeout (ms)
+            <input
+              type="number"
+              min={100}
+              max={5000}
+              step={50}
+              value={requestTimeoutMs}
+              onChange={(e) => setRequestTimeoutMs(e.target.value)}
+              disabled={isUvMode}
+              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
+            />
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Grabber FPS
+            <input
+              type="number"
+              min={2}
+              max={30}
+              step={1}
+              value={grabberFps}
+              onChange={(e) => setGrabberFps(e.target.value)}
+              disabled={isUvMode}
+              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
+            />
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={applyCaptureSettings}
+            disabled={setCaptureSettingsMutation.isPending || isUvMode}
+          >
+            Apply timing
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Current: offset {status?.capture_settings?.capture_offset_ms ?? 120} ms | window {status?.capture_settings?.event_window_ms ?? 120} ms
+          </span>
+        </div>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4 space-y-4">
         <div className="border-t border-border/60 pt-4 space-y-3">
           <div>
             <div className="text-sm font-medium">Temperature Display</div>
