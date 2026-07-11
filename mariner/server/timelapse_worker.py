@@ -318,6 +318,7 @@ class TimelapseWorker:
         soi = b"\xff\xd8"
         eoi = b"\xff\xd9"
 
+        _retry_delay = 0.5
         while not self._pipeline_stop.is_set():
             rtsp_url = self._rtsp_url()
             cmd = [
@@ -341,6 +342,7 @@ class TimelapseWorker:
             ]
 
             proc: Optional[subprocess.Popen[bytes]] = None
+            _proc_start = time.monotonic()
             try:
                 proc = subprocess.Popen(
                     cmd,
@@ -388,7 +390,10 @@ class TimelapseWorker:
                         proc.kill()
 
             if not self._pipeline_stop.is_set():
-                time.sleep(0.2)
+                elapsed = time.monotonic() - _proc_start
+                _retry_delay = min(_retry_delay * 2, 15.0) if elapsed < 2.0 else 0.5
+                logger.info("Grabber retry in %.1fs (stream lived %.1fs)", _retry_delay, elapsed)
+                time.sleep(_retry_delay)
 
     def _scheduler_loop(self) -> None:
         while not self._pipeline_stop.is_set():
