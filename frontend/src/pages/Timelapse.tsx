@@ -9,10 +9,9 @@ import { api } from "@/lib/api";
 import { applyTheme, getStoredThemeId, themes } from "@/lib/themes";
 import {
   formatTemperature,
-  getTemperatureColorClass,
   type TemperatureUnit,
 } from "@/lib/temperature";
-import { cn } from "@/lib/utils";
+import { cn, ellipsizeMiddle } from "@/lib/utils";
 
 const RENDER_PRESETS = [
   { value: "smooth_60fps", label: "60 fps" },
@@ -25,12 +24,53 @@ const unitOptions: Array<{ value: TemperatureUnit; label: string }> = [
   { value: "F", label: "Fahrenheit" },
 ];
 
-const tempBands = [
-  { label: "Cool", range: "Below 20 C", sample: 18 },
-  { label: "Normal", range: "20-35 C", sample: 25 },
-  { label: "Hot", range: "35-40 C", sample: 36 },
-  { label: "Alert", range: "Above 40 C", sample: 43 },
-];
+const TEMP_THRESHOLDS_STORAGE_KEY = "mariner_temp_thresholds_c";
+const DEFAULT_TEMP_THRESHOLDS_C = {
+  coolMax: 20,
+  normalMax: 35,
+  hotMax: 40,
+};
+
+function cToUnit(tempC: number, unit: TemperatureUnit): number {
+  return unit === "F" ? (tempC * 9) / 5 + 32 : tempC;
+}
+
+function unitToC(value: number, unit: TemperatureUnit): number {
+  return unit === "F" ? ((value - 32) * 5) / 9 : value;
+}
+
+function normalizeTemperatureThresholds(
+  value: Partial<typeof DEFAULT_TEMP_THRESHOLDS_C>,
+): typeof DEFAULT_TEMP_THRESHOLDS_C {
+  const coolMax = Number.isFinite(value.coolMax)
+    ? Number(value.coolMax)
+    : DEFAULT_TEMP_THRESHOLDS_C.coolMax;
+  const normalRaw = Number.isFinite(value.normalMax)
+    ? Number(value.normalMax)
+    : DEFAULT_TEMP_THRESHOLDS_C.normalMax;
+  const hotRaw = Number.isFinite(value.hotMax)
+    ? Number(value.hotMax)
+    : DEFAULT_TEMP_THRESHOLDS_C.hotMax;
+
+  const normalMax = Math.max(coolMax + 0.5, normalRaw);
+  const hotMax = Math.max(normalMax + 0.5, hotRaw);
+  return { coolMax, normalMax, hotMax };
+}
+
+function getTemperatureBandColorClass(
+  tempC: number | null | undefined,
+  thresholds: typeof DEFAULT_TEMP_THRESHOLDS_C,
+): string {
+  if (tempC == null) return "text-muted-foreground";
+  if (tempC < thresholds.coolMax) return "text-blue-400";
+  if (tempC < thresholds.normalMax) return "text-green-400";
+  if (tempC < thresholds.hotMax) return "text-red-500";
+  return "text-pink-400";
+}
+
+function formatRangeBoundary(tempC: number, unit: TemperatureUnit): string {
+  return `${cToUnit(tempC, unit).toFixed(1)} \u00B0${unit}`;
+}
 
 type RenderPreset = (typeof RENDER_PRESETS)[number]["value"];
 
@@ -44,9 +84,20 @@ export default function Timelapse() {
   const [confirmDeleteSession, setConfirmDeleteSession] = useState<string | null>(null);
   const [captureOffsetMs, setCaptureOffsetMs] = useState("120");
   const [eventWindowMs, setEventWindowMs] = useState("120");
-  const [bufferSeconds, setBufferSeconds] = useState("2.0");
   const [requestTimeoutMs, setRequestTimeoutMs] = useState("1000");
-  const [grabberFps, setGrabberFps] = useState("15");
+  const [grabMode, setGrabMode] = useState<"background" | "on_request">("background");
+  const [tempThresholdsC, setTempThresholdsC] = useState(() => {
+    if (typeof window === "undefined") {
+      return DEFAULT_TEMP_THRESHOLDS_C;
+    }
+    try {
+      const raw = window.localStorage.getItem(TEMP_THRESHOLDS_STORAGE_KEY);
+      if (!raw) return DEFAULT_TEMP_THRESHOLDS_C;
+      return normalizeTemperatureThresholds(JSON.parse(raw));
+    } catch {
+      return DEFAULT_TEMP_THRESHOLDS_C;
+    }
+  });
 
   const { data: status } = useQuery({
     queryKey: ["timelapse-status"],
@@ -136,8 +187,8 @@ export default function Timelapse() {
     onSuccess: (result) => {
       toast.success(
         result.capture_queued
-          ? "Z trigger detected. One frame was queued."
-          : "Z trigger detected, but no session is active.",
+          ? "UV trigger detected. One frame was queued."
+          : "UV trigger detected, but no session is active.",
       );
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
       queryClient.invalidateQueries({ queryKey: ["timelapse-sessions"] });
@@ -145,38 +196,20 @@ export default function Timelapse() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const setDetectorInvertMutation = useMutation({
-    mutationFn: (invert: boolean) => api.timelapseSetDetectorInvert(invert),
-    onSuccess: () => {
-      toast.success("Z direction updated.");
-      queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
 
-  const setDetectorModeMutation = useMutation({
-    mutationFn: (mode: "z_top" | "uv_light") => api.timelapseSetDetectorMode(mode),
-    onSuccess: () => {
-      toast.success("Trigger mode updated.");
-      queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
 
   const setCaptureSettingsMutation = useMutation({
     mutationFn: (payload: {
       captureOffsetMs: number;
       eventWindowMs: number;
-      bufferSeconds: number;
       requestTimeoutMs: number;
-      grabberFps: number;
+      grabMode: "background" | "on_request";
     }) =>
       api.timelapseSetCaptureSettings({
         capture_offset_ms: payload.captureOffsetMs,
         event_window_ms: payload.eventWindowMs,
-        buffer_seconds: payload.bufferSeconds,
         request_timeout_ms: payload.requestTimeoutMs,
-        grabber_fps: payload.grabberFps,
+        grab_mode: payload.grabMode,
       }),
     onSuccess: () => {
       toast.success("Capture timing updated.");
@@ -225,10 +258,6 @@ export default function Timelapse() {
   });
 
   const profile = profileData?.active ?? "HIGH";
-  const detector = status?.detector;
-  const triggerMode = status?.trigger_mode ?? "z_top";
-  const isUvMode = triggerMode === "uv_light";
-  const zDetector = status?.detector_z;
   const uvDetector = status?.detector_uv;
   const profileDetails = profileData?.profiles;
   const mutationPending =
@@ -236,8 +265,6 @@ export default function Timelapse() {
     endSessionMutation.isPending ||
     captureMutation.isPending ||
     triggerTestMutation.isPending ||
-    setDetectorInvertMutation.isPending ||
-    setDetectorModeMutation.isPending ||
     setCaptureSettingsMutation.isPending;
 
   const anySession = sessions.length > 0;
@@ -259,6 +286,35 @@ export default function Timelapse() {
 
   const itemsLoading = sessionsLoading || videosLoading;
 
+  const tempBands = useMemo(() => {
+    const coolMax = tempThresholdsC.coolMax;
+    const normalMax = tempThresholdsC.normalMax;
+    const hotMax = tempThresholdsC.hotMax;
+
+    return [
+      {
+        label: "Cool",
+        range: `Below ${formatRangeBoundary(coolMax, unit)}`,
+        sample: coolMax - 2,
+      },
+      {
+        label: "Normal",
+        range: `${formatRangeBoundary(coolMax, unit)} - ${formatRangeBoundary(normalMax, unit)}`,
+        sample: (coolMax + normalMax) / 2,
+      },
+      {
+        label: "Hot",
+        range: `${formatRangeBoundary(normalMax, unit)} - ${formatRangeBoundary(hotMax, unit)}`,
+        sample: (normalMax + hotMax) / 2,
+      },
+      {
+        label: "Alert",
+        range: `Above ${formatRangeBoundary(hotMax, unit)}`,
+        sample: hotMax + 2,
+      },
+    ];
+  }, [tempThresholdsC, unit]);
+
   const listRows = useMemo(() => {
     const sessionRows = sessions.map((s) => ({ type: "session" as const, data: s }));
     const videoRows = videos.map((v) => ({ type: "video" as const, data: v }));
@@ -270,14 +326,21 @@ export default function Timelapse() {
   }, [activeThemeId]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      TEMP_THRESHOLDS_STORAGE_KEY,
+      JSON.stringify(tempThresholdsC),
+    );
+  }, [tempThresholdsC]);
+
+  useEffect(() => {
     if (!captureSettings) {
       return;
     }
     setCaptureOffsetMs(String(captureSettings.capture_offset_ms));
     setEventWindowMs(String(captureSettings.event_window_ms));
-    setBufferSeconds(String(captureSettings.buffer_seconds));
     setRequestTimeoutMs(String(captureSettings.request_timeout_ms));
-    setGrabberFps(String(captureSettings.grabber_fps));
+    setGrabMode(captureSettings.grab_mode ?? "background");
   }, [captureSettings]);
 
   useEffect(() => {
@@ -303,6 +366,18 @@ export default function Timelapse() {
 
   const tempC = bmp280?.ok ? bmp280.temp_c : null;
 
+  function updateTemperatureThreshold(
+    key: keyof typeof DEFAULT_TEMP_THRESHOLDS_C,
+    valueInCurrentUnit: string,
+  ) {
+    const parsed = Number(valueInCurrentUnit);
+    if (!Number.isFinite(parsed)) return;
+    const valueC = unitToC(parsed, unit);
+    setTempThresholdsC((prev) =>
+      normalizeTemperatureThresholds({ ...prev, [key]: valueC }),
+    );
+  }
+
   function applyCaptureSettings() {
     const parseOr = (value: string, fallback: number) => {
       const parsed = Number(value);
@@ -312,9 +387,27 @@ export default function Timelapse() {
     setCaptureSettingsMutation.mutate({
       captureOffsetMs: parseOr(captureOffsetMs, 120),
       eventWindowMs: parseOr(eventWindowMs, 120),
-      bufferSeconds: parseOr(bufferSeconds, 2),
       requestTimeoutMs: parseOr(requestTimeoutMs, 1000),
-      grabberFps: parseOr(grabberFps, 15),
+      grabMode,
+    });
+  }
+
+  function applyGrabMode(nextGrabMode: "background" | "on_request") {
+    if (nextGrabMode === grabMode) {
+      return;
+    }
+
+    const parseOr = (value: string, fallback: number) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    setGrabMode(nextGrabMode);
+    setCaptureSettingsMutation.mutate({
+      captureOffsetMs: parseOr(captureOffsetMs, 120),
+      eventWindowMs: parseOr(eventWindowMs, 120),
+      requestTimeoutMs: parseOr(requestTimeoutMs, 1000),
+      grabMode: nextGrabMode,
     });
   }
 
@@ -322,17 +415,35 @@ export default function Timelapse() {
     <div className="container pt-2 pb-2 space-y-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Camera, timelapse, rendering, and sensor controls in one place.
-        </p>
       </div>
+
+        <div className="rounded-lg border bg-card p-4 space-y-4">
+          <div>
+            <div className="text-sm font-medium">UI colors</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {themes.map((theme) => (
+              <button
+                key={theme.id}
+                type="button"
+                onClick={() => setActiveThemeId(theme.id)}
+                className={cn(
+                  "h-9 w-9 rounded-full border transition-colors",
+                  activeThemeId === theme.id
+                    ? "border-primary ring-2 ring-primary/30"
+                    : "border-border/60 hover:border-border",
+                )}
+                style={{ backgroundColor: theme.accent }}
+                aria-label={`Select color ${theme.id}`}
+                aria-pressed={activeThemeId === theme.id}
+              />
+            ))}
+          </div>
+        </div>
 
       <div className="rounded-lg border bg-card p-4 space-y-4">
         <div>
-          <div className="text-sm font-medium">Global Camera Settings</div>
-          <p className="text-xs text-muted-foreground">
-            The selected profile is applied live through the MediaMTX API.
-          </p>
+          <div className="text-sm font-medium">Camera Settings</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {(["HIGH", "MID", "LOW"] as const).map((currentProfile) => {
@@ -367,20 +478,29 @@ export default function Timelapse() {
       </div>
 
       <div className="rounded-lg border bg-card p-4 space-y-3">
+        <div className="text-sm font-medium">Timelapse Stauts</div>
         <div className="text-sm">
-          <span className="font-medium">Status:</span>{" "}
           {status?.recording ? "Recording" : "Idle"} |{" "}
-          <span className="font-medium">Trigger mode:</span>{" "}
-          {triggerMode === "uv_light" ? "UV light" : "Z-top"} |{" "}
           <span className="font-medium">Frames:</span> {status?.frame_count ?? 0} |{" "}
           <span className="font-medium">Queue:</span> {status?.pending_frames ?? 0} |{" "}
-          <span className="font-medium">Capture req:</span> {status?.capture_requests_total ?? 0} |{" "}
+          <span className="font-medium">Request:</span> {status?.capture_requests_total ?? 0} |{" "}
           <span className="font-medium">OK:</span> {status?.capture_success_total ?? 0} |{" "}
-          <span className="font-medium">Fail:</span> {status?.capture_fail_total ?? 0}
+          <span className="font-medium">Fail:</span> {status?.capture_fail_total ?? 0} |{" "}
+          <span className="font-medium">Last/Avg/Max:</span>{" "}
+          {(status?.capture_duration_last_ms ?? 0).toFixed(0)}/{(status?.capture_duration_avg_ms ?? 0).toFixed(0)}/{(status?.capture_duration_max_ms ?? 0).toFixed(0)} ms
         </div>
         <div className="text-sm">
           <span className="font-medium">Session:</span> {status?.session_id ?? "none"}
           {status?.last_session_id ? ` | Last session: ${status.last_session_id}` : ""}
+        </div>
+        <div className="text-sm">
+          <span className="font-medium">UV Light:</span>{" "}
+          {uvDetector
+            ? `${uvDetector.sensor_high ? "HIGH" : "LOW"} | events: ${uvDetector.event_count}`
+            : "n/a"}
+          {uvDetector?.last_detected_at
+            ? ` | Last: ${new Date(uvDetector.last_detected_at).toLocaleString()}`
+            : ""}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -391,12 +511,12 @@ export default function Timelapse() {
             Start
           </Button>
           <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => endSessionMutation.mutate()}
-            disabled={!status?.recording || mutationPending}
+          size="sm"
+          variant={status?.recording ? "destructive" : "secondary"}
+          onClick={() => endSessionMutation.mutate()}
+          disabled={!status?.recording || mutationPending}
           >
-            Stop
+          Stop
           </Button>
           <Button
             size="sm"
@@ -416,7 +536,7 @@ export default function Timelapse() {
           </Button>
         </div>
         <div className="text-xs text-muted-foreground">
-          Start opens a capture session. Each detected trigger should queue one frame.
+          Press Start to open a new manual capture session. Each detected trigger should queue one frame.
         </div>
       </div>
 
@@ -436,12 +556,16 @@ export default function Timelapse() {
               if (row.type === "session") {
                 const session = row.data;
                 const keep = Boolean(keepSessionById[session.session_id]);
+                const sessionRendering = Boolean(
+                  renderSessionMutation.isPending &&
+                  activeRenderKey?.startsWith(`${session.session_id}:`),
+                );
                 return (
                   <div key={`session-${session.session_id}`} className="p-3 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate font-mono text-sm">
-                          Session: {session.session_id}{session.active ? " (active)" : ""}
+                          Session: {ellipsizeMiddle(session.session_id, 42)}{session.active ? " (active)" : ""}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {session.frame_count} frames
@@ -461,7 +585,7 @@ export default function Timelapse() {
                         )}
                         aria-pressed={keep}
                       >
-                        <span>Keep session</span>
+                        <span>Keep Session</span>
                         <span
                           className={cn(
                             "relative h-5 w-9 rounded-full transition-colors",
@@ -515,11 +639,21 @@ export default function Timelapse() {
                               renderSessionMutation.isPending && !isActive && "opacity-70",
                             )}
                           >
-                            Render {preset.label}
+                            {isActive ? (
+                              <>
+                                <Loader2 className="mr-1 inline-block h-3.5 w-3.5 animate-spin" />
+                                Rendering...
+                              </>
+                            ) : (
+                              <>Render {preset.label}</>
+                            )}
                           </button>
                         );
                       })}
                     </div>
+                    {sessionRendering ? (
+                      <div className="text-xs text-primary">Rendering in progress...</div>
+                    ) : null}
                   </div>
                 );
               }
@@ -528,7 +662,7 @@ export default function Timelapse() {
               return (
                 <div key={`video-${video.filename}`} className="flex items-center justify-between p-3">
                   <div className="min-w-0">
-                    <div className="truncate font-mono text-sm">{video.filename}</div>
+                    <div className="truncate font-mono text-sm" title={video.filename}>{ellipsizeMiddle(video.filename, 42)}</div>
                     <div className="text-xs text-muted-foreground">{video.size_mb} MB</div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -584,109 +718,11 @@ export default function Timelapse() {
           No closed sessions available, so no render buttons are shown.
         </div>
       ) : null}
-      <div className="rounded-lg border bg-card p-4 space-y-4">
-        <div className="text-sm font-medium">Sensors</div>
-
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-medium">Trigger source:</span>
-          <Button
-            size="sm"
-            variant={triggerMode === "z_top" ? "default" : "outline"}
-            onClick={() => setDetectorModeMutation.mutate("z_top")}
-            disabled={setDetectorModeMutation.isPending}
-          >
-            Z-top
-          </Button>
-          <Button
-            size="sm"
-            variant={triggerMode === "uv_light" ? "default" : "outline"}
-            onClick={() => setDetectorModeMutation.mutate("uv_light")}
-            disabled={setDetectorModeMutation.isPending}
-          >
-            UV-light (GPIO22)
-          </Button>
-        </div>
-
-        <div className="text-sm">
-          <span className="font-medium">BMP280:</span>{" "}
-          <span className={cn(getTemperatureColorClass(tempC))}>
-            {bmp280?.ok
-              ? formatTemperature(tempC, unit)
-              : `n/a${bmp280?.error ? ` (${bmp280.error})` : ""}`}
-          </span>
-        </div>
-
-        <div className={cn("space-y-2", isUvMode && "opacity-60")}>
-          <div className="text-sm">
-            <span className="font-medium">CNY70 A/B:</span>{" "}
-            {zDetector
-              ? `${formatSensorState(zDetector.sensor_a)} / ${formatSensorState(zDetector.sensor_b)}`
-              : "n/a"}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-medium">Top detections:</span> {zDetector?.top_event_count ?? 0}
-            {zDetector?.last_top_detected_at
-              ? ` | Last: ${new Date(zDetector.last_top_detected_at).toLocaleString()}`
-              : ""}
-            {zDetector?.last_event_simulated ? " | last event was a test trigger" : ""}
-            <button
-              type="button"
-              onClick={() => setDetectorInvertMutation.mutate(!(zDetector?.invert ?? false))}
-              disabled={setDetectorInvertMutation.isPending || isUvMode}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
-                zDetector?.invert
-                  ? "border-primary/40 bg-primary/10 text-primary"
-                  : "border-border bg-background text-muted-foreground",
-              )}
-              aria-pressed={zDetector?.invert ?? false}
-            >
-              <span>Invert</span>
-              <span
-                className={cn(
-                  "relative h-5 w-9 rounded-full transition-colors",
-                  zDetector?.invert ? "bg-primary" : "bg-muted",
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
-                    zDetector?.invert ? "translate-x-4" : "translate-x-0",
-                  )}
-                />
-              </span>
-            </button>
-          </div>
-          {isUvMode ? (
-            <div className="text-xs text-muted-foreground">
-              Z-top controls are inactive while UV-light mode is selected.
-            </div>
-          ) : (
-            <div className="text-xs text-muted-foreground">
-              Use Invert when top and bottom are swapped.
-            </div>
-          )}
-        </div>
-
-        <div className="text-sm">
-          <span className="font-medium">UV sensor (GPIO22):</span>{" "}
-          {uvDetector
-            ? `${uvDetector.sensor_high ? "HIGH" : "LOW"} | events: ${uvDetector.event_count}`
-            : "n/a"}
-          {uvDetector?.last_detected_at
-            ? ` | Last: ${new Date(uvDetector.last_detected_at).toLocaleString()}`
-            : ""}
-        </div>
-      </div>
-
-      <div className={cn("rounded-lg border bg-card p-4 space-y-3", isUvMode && "opacity-60")}>
+      <div className="rounded-lg border bg-card p-4 space-y-3">
         <div>
-          <div className="text-sm font-medium">Capture Timing (Jitter Tuning)</div>
-          <p className="text-xs text-muted-foreground">
-            Offset is the delay after Z-top before selecting the buffered frame.
-          </p>
+          <div className="text-sm font-medium">Capture Timing</div>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="text-xs text-muted-foreground">
             Offset (ms)
             <input
@@ -696,7 +732,6 @@ export default function Timelapse() {
               step={10}
               value={captureOffsetMs}
               onChange={(e) => setCaptureOffsetMs(e.target.value)}
-              disabled={isUvMode}
               className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
             />
           </label>
@@ -709,20 +744,6 @@ export default function Timelapse() {
               step={10}
               value={eventWindowMs}
               onChange={(e) => setEventWindowMs(e.target.value)}
-              disabled={isUvMode}
-              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
-            />
-          </label>
-          <label className="text-xs text-muted-foreground">
-            Buffer (s)
-            <input
-              type="number"
-              min={0.2}
-              max={10}
-              step={0.1}
-              value={bufferSeconds}
-              onChange={(e) => setBufferSeconds(e.target.value)}
-              disabled={isUvMode}
               className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
             />
           </label>
@@ -735,47 +756,37 @@ export default function Timelapse() {
               step={50}
               value={requestTimeoutMs}
               onChange={(e) => setRequestTimeoutMs(e.target.value)}
-              disabled={isUvMode}
-              className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
-            />
-          </label>
-          <label className="text-xs text-muted-foreground">
-            Grabber FPS
-            <input
-              type="number"
-              min={2}
-              max={30}
-              step={1}
-              value={grabberFps}
-              onChange={(e) => setGrabberFps(e.target.value)}
-              disabled={isUvMode}
               className="mt-1 w-full rounded-md border bg-background px-2 py-1 text-sm text-foreground"
             />
           </label>
         </div>
-        <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
           <Button
             size="sm"
             variant="outline"
             onClick={applyCaptureSettings}
-            disabled={setCaptureSettingsMutation.isPending || isUvMode}
+            disabled={setCaptureSettingsMutation.isPending}
           >
             Apply timing
           </Button>
           <span className="text-xs text-muted-foreground">
-            Current: offset {status?.capture_settings?.capture_offset_ms ?? 120} ms | window {status?.capture_settings?.event_window_ms ?? 120} ms
+            Current: offset {status?.capture_settings?.capture_offset_ms ?? 120} ms | window {status?.capture_settings?.event_window_ms ?? 120} ms | mode {status?.capture_settings?.grab_mode === "on_request" ? "on demand" : "background"}
           </span>
         </div>
       </div>
 
       <div className="rounded-lg border bg-card p-4 space-y-4">
-        <div className="border-t border-border/60 pt-4 space-y-3">
           <div>
             <div className="text-sm font-medium">Temperature Display</div>
-            <p className="text-xs text-muted-foreground">
-              Choose how temperatures are shown in the navbar and sensor readout.
-            </p>
           </div>
+                  <div className="text-sm">
+          <span className="mb-1 font-medium">I²C Sensor BMP280:</span>{" "}
+          <span className={cn(getTemperatureBandColorClass(tempC, tempThresholdsC))}>
+            {bmp280?.ok
+              ? formatTemperature(tempC, unit)
+              : `n/a${bmp280?.error ? ` (${bmp280.error})` : ""}`}
+          </span>
+        </div>
           <div className="flex flex-wrap gap-2">
             {unitOptions.map((option) => (
               <Button
@@ -788,52 +799,53 @@ export default function Timelapse() {
               </Button>
             ))}
           </div>
-          <div className="text-sm text-muted-foreground">
-            Preview: <span className="font-medium text-foreground">{formatTemperature(24.5, unit)}</span>
+          <div className="text-xs text-muted-foreground rounded-md border border-border/50 bg-background/40 p-2">
+            <div className="mb-1 font-medium">Limits</div>
+            <div className="flex flex-wrap gap-2">
+              <label className="flex items-center gap-1">
+                Cool max
+                <input
+                  type="number"
+                  step={0.5}
+                  value={cToUnit(tempThresholdsC.coolMax, unit).toFixed(1)}
+                  onChange={(e) => updateTemperatureThreshold("coolMax", e.target.value)}
+                  className="h-7 w-20 rounded-md border bg-background px-2 text-xs text-foreground"
+                />
+              </label>
+              <label className="flex items-center gap-1">
+                Normal max
+                <input
+                  type="number"
+                  step={0.5}
+                  value={cToUnit(tempThresholdsC.normalMax, unit).toFixed(1)}
+                  onChange={(e) => updateTemperatureThreshold("normalMax", e.target.value)}
+                  className="h-7 w-20 rounded-md border bg-background px-2 text-xs text-foreground"
+                />
+              </label>
+              <label className="flex items-center gap-1">
+                Hot max
+                <input
+                  type="number"
+                  step={0.5}
+                  value={cToUnit(tempThresholdsC.hotMax, unit).toFixed(1)}
+                  onChange={(e) => updateTemperatureThreshold("hotMax", e.target.value)}
+                  className="h-7 w-20 rounded-md border bg-background px-2 text-xs text-foreground"
+                />
+              </label>
+            </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {tempBands.map((band) => (
               <div key={band.label} className="rounded-md border border-border/60 bg-background/40 p-3">
-                <div className={cn("text-sm font-semibold", getTemperatureColorClass(band.sample))}>
+                <div className={cn("text-sm font-semibold", getTemperatureBandColorClass(band.sample, tempThresholdsC))}>
                   {band.label}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">{band.range}</div>
-                <div className={cn("mt-2 text-sm", getTemperatureColorClass(band.sample))}>
-                  {formatTemperature(band.sample, unit)}
-                </div>
               </div>
             ))}
           </div>
-
-          <div className="border-t border-border/60 pt-4 space-y-3">
-            <div>
-              <div className="text-sm font-medium">UI colors</div>
-              <p className="text-xs text-muted-foreground">
-                Customize the accent colors for the UI elements.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {themes.map((theme) => (
-                <button
-                  key={theme.id}
-                  type="button"
-                  onClick={() => setActiveThemeId(theme.id)}
-                  className={cn(
-                    "h-9 w-9 rounded-full border transition-colors",
-                    activeThemeId === theme.id
-                      ? "border-primary ring-2 ring-primary/30"
-                      : "border-border/60 hover:border-border",
-                  )}
-                  style={{ backgroundColor: theme.accent }}
-                  aria-label={`Select color ${theme.id}`}
-                  aria-pressed={activeThemeId === theme.id}
-                />
-              ))}
-            </div>
-          </div>
         </div>
       </div>
-    </div>
   );
 }
 

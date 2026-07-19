@@ -1,22 +1,17 @@
-﻿# Timelapse - MediaMTX setup
+﻿# Timelapse setup
 
-The Raspberry Pi camera (`rpiCamera`) can only provide **one** live source at a time.
-Mariner therefore uses a single global `cam` path and updates its quality settings live through the MediaMTX Control API.
+This document describes the current Raspberry Pi timelapse setup used by Mariner.
 
-## Current camera profiles
+## What is active now
 
-These are the profiles used by the UI and the backend:
+- One global MediaMTX stream path: `cam`
+- Live profile switching through the MediaMTX Control API
+- Buffered timelapse frame capture in the backend worker
+- UV-bottom trigger detection only (`uv_light`)
+- UV detector runs in simple GPIO polling mode (no interrupt backend)
+- Default UV sensor pin: `GPIO24`
 
-### HIGH - 1296x972, 30 fps, 4 Mbps
-Best image quality for detailed timelapse captures.
-
-### MID - 1024x768, 20 fps, 2 Mbps
-Balanced 4:3 profile with lower load than HIGH.
-
-### LOW - 640x480, 15 fps, 800 kbps
-Lowest load and smallest files. Uses the `main` profile as well.
-
-## Required MediaMTX configuration
+## MediaMTX requirements
 
 File:
 
@@ -24,10 +19,7 @@ File:
 /etc/mediamtx/mediamtx.yml
 ```
 
-The `cam` path must exist and must use `rpiCamera`.
-The Control API must also be enabled.
-
-Example:
+Minimum required configuration:
 
 ```yaml
 api: yes
@@ -44,102 +36,103 @@ paths:
     rpiCameraProfile: main
 ```
 
-## How profile switching works now
-
-Mariner updates the existing `cam` path through:
+Mariner updates the active camera profile through:
 
 ```text
 PATCH /v3/config/paths/patch/cam
 ```
 
-That means:
+If MediaMTX is not running yet, Mariner can still start, but profile patching logs a warning.
 
-- the selected UI profile is applied live
-- the stream path stays `cam`
-- MediaMTX must expose the Control API on port `9997`
+## Camera profiles
 
-## Persistent timelapse settings
+### HIGH
+- 1296x972
+- 30 fps
+- 4 Mbps
 
-Selected timelapse settings are stored at:
+### MID
+- 1024x768
+- 20 fps
+- 2 Mbps
+
+### LOW
+- 640x480
+- 15 fps
+- 800 kbps
+
+## Timelapse storage
+
+Settings:
 
 ```text
 ~/.mariner/timelapse/settings.json
 ```
 
-Legacy settings from:
-
-```text
-/var/tmp/mariner_timelapse/settings.json (legacy)
-```
-
-are migrated automatically when present.
-
-Timelapse data (sessions/frames/videos) is stored persistently at:
+Timelapse data:
 
 ```text
 ~/.mariner/timelapse/
 ```
 
-Legacy frames/videos from:
+Legacy data from `/var/tmp/mariner_timelapse/` is migrated when possible.
+
+## Trigger mode
+
+Only one trigger mode is used:
+
+- `uv_light`
+
+The active mode is exposed by `/api/timelapse/status`.
+
+## UV detector
+
+- Input pin defaults to `GPIO24`
+- Input uses `PUD_OFF` (no internal pull-up)
+- Detection is polling-based and latches one trigger per HIGH phase
+- Debounce still applies between trigger events
+- Trigger feedback LED pulses on `GPIO4` only after a frame was captured successfully
+
+Optional environment override:
 
 ```text
-/var/tmp/mariner_timelapse/
+MARINER_UV_SENSOR_PIN=24
 ```
 
-are migrated on startup when possible.
+## Verification steps on Pi
 
-## Z-top detection (direction-change mode)
+Restart the service:
 
-The detector is now **direction-change based** (not full-sequence based):
-
-- It detects the start edge of each revolution from `00`.
-- It tracks last revolution direction (`up` or `down`).
-- It triggers **only when direction changes from up to down**.
-
-For the common bit pattern per revolution:
-
-```text
-00 -> 01 -> 11 -> 10 -> 00
+```bash
+sudo systemctl restart mariner3d
+sleep 2
 ```
 
-Direction mapping:
+Check status:
 
-- `invert = false` (`top_entry_sensor = A`):
-  - `00 -> 01` = down
-  - `00 -> 10` = up
-- `invert = true` (`top_entry_sensor = B`):
-  - `00 -> 10` = down
-  - `00 -> 01` = up
-
-Trigger behavior:
-
-- Up revolutions: no trigger
-- First down revolution after up: trigger once
-- Following down revolutions: no trigger
-- Next change to down after going up again: trigger once
-
-## Frame capture queue behavior
-
-Frame capture is asynchronous (ffmpeg in worker threads). On session end, Mariner now waits for queued frame jobs to finish before the session is considered ended. This prevents rendering too early with missing frames.
-
-Practical note: if one frame capture takes ~2 seconds on your Pi, a trigger interval below that can still queue work, but end-session now drains that queue first.
-
-## Files updated in this change
-
-```text
-frontend/src/App.tsx
-frontend/src/components/AppNav.tsx
-frontend/src/hooks/use-temperature-unit.ts
-frontend/src/lib/api.ts
-frontend/src/lib/temperature.ts
-frontend/src/pages/Files.tsx
-frontend/src/pages/Index.tsx
-frontend/src/pages/Settings.tsx
-frontend/src/pages/Timelapse.tsx
-mariner/server/routes_timelapse.py
-mariner/server/timelapse_manager.py
-mariner/server/timelapse_worker.py
-mariner/server/z_spindle_detector.py
-mariner/tests/test_z_spindle_detector.py
+```bash
+curl -m 3 -sS http://127.0.0.1:5000/api/timelapse/status
 ```
 
+Healthy output should show:
+
+```json
+{
+  "trigger_mode": "uv_light",
+  "detector_uv": {
+    "interrupt_mode": false,
+    "interrupt_backend": "polling",
+    "pin": 24,
+    "led_pin": 4
+  }
+}
+```
+
+## Notes about local repo vs installed runtime
+
+On the Pi, Mariner may run from the installed virtualenv package path instead of a checkout.
+If behavior differs from the repository files, verify which runtime file is active before debugging further.
+
+Recommended UV-bottom capture settings: offset 800 ms, event window 800 ms, timeout 4500 ms.
+
+If buffered capture misses a frame deadline, Mariner falls back to a one-shot ffmpeg snapshot.

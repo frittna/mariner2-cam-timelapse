@@ -137,19 +137,17 @@ class TimelapseManager:
         return normalized
 
     @classmethod
-    def get_trigger_mode(cls, default: str = "z_top") -> str:
-        mode = str(cls.load_settings().get("trigger_mode", default)).lower()
-        return mode if mode in {"z_top", "uv_light"} else default
+    def get_trigger_mode(cls, default: str = "uv_light") -> str:
+        _ = str(cls.load_settings().get("trigger_mode", default)).lower()
+        return "uv_light"
 
     @classmethod
     def set_trigger_mode(cls, mode: str) -> str:
-        normalized = mode.lower()
-        if normalized not in {"z_top", "uv_light"}:
-            normalized = "z_top"
+        _ = mode.lower()
         settings = cls.load_settings()
-        settings["trigger_mode"] = normalized
+        settings["trigger_mode"] = "uv_light"
         cls.save_settings(settings)
-        return normalized
+        return "uv_light"
 
     @staticmethod
     def write_session_metadata(session_id: str, metadata: dict) -> None:

@@ -1,3 +1,36 @@
+🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**           12.july,26 - 16:00
+
+It is now workig fine but still work in progress until i tested it more and made final minor changes if needed.
+
+
+-
+![grafic6](Screenshot6.jpg)
+
+-
+![grafic5](Screenshot5.jpg)
+
+-
+![grafic7](Screenshot7.jpg)
+
+-
+![grafic8](Screenshot8.jpg)
+
+-
+➡️ **[Click here to see details on the timelapse methods](docs/TIMELAPSE_MEDIAMTX_SETUP.md)**
+
+
+Notes:
+Z.top impulses make jittery videos since detection with two ir-sensors (GPIO27+17) and even 10 markings on the z-spindle is not exact enough, better is when the uv-light in the bottom is detected instead or even better is to use a signal from the mainboard and make a 3,3V signal into gpio22. Frames taken when light is on have much more time to store the picture so less jitter. 
+_
+
+The weired (minor) current-layer display bug is still present like in the source version from amd939.
+_
+
+The .ctb decrytion of a chitubox file was buggy there too by the way, it crashed. This is fixed now in a quidck and dirty way but now chitubox .ctb file loads fine and preview pictures are showen too but need 1min(!) - this must be a bug i guess. In UVTOOLS created .ctb files work too and are shown much faster (2sek instead of 1min) but are a bit stretched - not too bad - its an UVTOOLS/Mars3 topic btw as i understand, and never a problem.
+
+_____________________________________________________________________________________________________________________________________________________________________________________________________________________________
+
+**from here on it isn't false, but outdated:**
 🔴 Mariner 2 Cam for Pi Zero 2
 
 ### 3D-Printer Monitoring Tool with Camera Support, WLAN OTG-USB-Gadget, Firewall, VPN, Fail2ban, Webmin and a physical shutdown  ###
@@ -38,8 +71,8 @@ You can run it yourself by following this tutorial in 1-2 hours (in German at th
 
 ![grafic2](Screenshot1max_DB.jpg)
 
-![grafic1](Screenshot3min_FM.jpg)
+![grafic3](Screenshot3min_FM.jpg)
 
-![grafic3](Screenshot4print_preview.jpg)
+![grafic4](Screenshot4print_preview.jpg)
 
 ---

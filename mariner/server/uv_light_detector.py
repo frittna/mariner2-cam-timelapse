@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import threading
 import time
 from datetime import datetime
@@ -15,22 +15,32 @@ except ImportError:
 class UVLightDetector:
     def __init__(
         self,
-        sensor_pin: int = 22,
+        sensor_pin: int = 24,
         debounce_ms: int = 300,
         on_light_detected: Optional[Callable[[], None]] = None,
+        poll_interval_ms: int = 5,
+        led_pin: int = 4,
     ) -> None:
         self.sensor_pin = sensor_pin
         self.debounce_seconds = debounce_ms / 1000.0
         self.on_light_detected = on_light_detected
+        self._poll_interval_seconds = max(0.001, poll_interval_ms / 1000.0)
+        self.led_pin = led_pin
+
         self._running = False
         self._thread: Optional[threading.Thread] = None
+
         self._use_interrupts = False
+        self._interrupt_backend = "polling"
+
         self._last_state = False
         self._latched_high = False
         self._last_trigger = 0.0
         self._event_count = 0
         self._last_detected_at: Optional[float] = None
         self._state_lock = threading.Lock()
+
+        self._led_available = False
 
     @property
     def is_running(self) -> bool:
@@ -41,36 +51,51 @@ class UVLightDetector:
             logger.warning("RPi.GPIO unavailable, UV detector disabled")
             return False
 
+        GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.sensor_pin, GPIO.IN, pull_up_down=GPIO.PUD_OFF)
-        self._last_state = self._read_state()
-        self._use_interrupts = False
-        logger.info("UV detector using polling on pin %s", self.sensor_pin)
 
+        try:
+            GPIO.setup(self.led_pin, GPIO.OUT, initial=GPIO.LOW)
+            self._led_available = True
+        except Exception:
+            self._led_available = False
+            logger.warning("Failed to initialize UV trigger LED pin %s", self.led_pin)
+
+        self._last_state = self._read_state()
+        self._latched_high = self._last_state
+        self._interrupt_backend = "polling"
+        self._use_interrupts = False
+        logger.info(
+            "UV detector using polling mode on pin %s (interval=%.1f ms)",
+            self.sensor_pin,
+            self._poll_interval_seconds * 1000.0,
+        )
         return True
 
     def start(self) -> None:
         if self._running:
             return
         self._running = True
-
-        if not self._use_interrupts:
-            self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
-            self._thread.start()
+        self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self._thread.start()
 
     def stop(self) -> None:
         self._running = False
+
         if self._thread:
             self._thread.join(timeout=2)
             self._thread = None
 
+        self._set_led(False)
+
     def cleanup(self) -> None:
         self.stop()
-        if GPIO is not None and self._use_interrupts:
+        if GPIO is not None:
             try:
-                GPIO.remove_event_detect(self.sensor_pin)
+                GPIO.cleanup([self.sensor_pin, self.led_pin])
             except Exception:
-                logger.exception("Failed removing UV GPIO edge detection")
+                logger.exception("UV GPIO cleanup failed")
 
     def _read_state(self) -> bool:
         if GPIO is None:
@@ -81,17 +106,24 @@ class UVLightDetector:
             logger.exception("Failed reading UV sensor")
             return self._last_state
 
-    def _on_gpio_edge(self, _channel: int) -> None:
-        if not self._running:
+    def _set_led(self, on: bool) -> None:
+        if GPIO is None or not self._led_available:
             return
-        with self._state_lock:
-            self._process_state_change(self._read_state())
+        try:
+            GPIO.output(self.led_pin, GPIO.HIGH if on else GPIO.LOW)
+        except Exception:
+            logger.exception("Failed updating UV trigger LED")
+
+
+    def pulse_capture_led(self) -> None:
+        self._set_led(True)
+        threading.Timer(0.15, lambda: self._set_led(False)).start()
 
     def _monitor_loop(self) -> None:
         while self._running:
             with self._state_lock:
                 self._process_state_change(self._read_state())
-            time.sleep(0.01)
+            time.sleep(self._poll_interval_seconds)
 
     def _process_state_change(self, state: bool) -> None:
         if not state:
@@ -110,10 +142,12 @@ class UVLightDetector:
         now = time.monotonic()
         if now - self._last_trigger < self.debounce_seconds:
             return
+
         self._last_trigger = now
         self._latched_high = True
         self._event_count += 1
         self._last_detected_at = time.time()
+
         try:
             if self.on_light_detected:
                 self.on_light_detected()
@@ -125,6 +159,7 @@ class UVLightDetector:
             "running": self.is_running,
             "gpio_available": GPIO is not None,
             "interrupt_mode": self._use_interrupts,
+            "interrupt_backend": self._interrupt_backend,
             "sensor_high": self._read_state(),
             "event_count": self._event_count,
             "last_detected_at": (
@@ -133,6 +168,8 @@ class UVLightDetector:
                 else None
             ),
             "pin": self.sensor_pin,
+            "poll_interval_ms": round(self._poll_interval_seconds * 1000.0, 1),
+            "led_pin": self.led_pin,
         }
 
     def trigger_test_event(self) -> bool:

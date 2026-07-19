@@ -10,9 +10,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Play, Layers, Clock, Ruler, Trash2 } from "lucide-react";
+import { Loader2, Play, Layers, Clock, Ruler, Trash2 } from "lucide-react";
 import { api, formatTime, type FileEntry } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, ellipsizeMiddle } from "@/lib/utils";
 
 interface FileDetailDialogProps {
   file: FileEntry | null;
@@ -22,6 +22,7 @@ interface FileDetailDialogProps {
 
 const AUTO_TIMELAPSE_KEY = "mariner_auto_timelapse_on_start";
 const AUTO_TIMELAPSE_EVENT = "mariner:auto-timelapse-changed";
+const PRINTER_PENDING_ACTION_KEY = "mariner_printer_pending_action";
 
 export function FileDetailDialog({
   file,
@@ -31,6 +32,7 @@ export function FileDetailDialog({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isStartingPrint, setIsStartingPrint] = useState(false);
   const [autoTimelapse, setAutoTimelapse] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
@@ -71,6 +73,7 @@ export function FileDetailDialog({
   };
 
   const handlePrint = async () => {
+    setIsStartingPrint(true);
     if (typeof window !== "undefined") {
       localStorage.setItem(AUTO_TIMELAPSE_KEY, autoTimelapse ? "1" : "0");
       window.dispatchEvent(new Event(AUTO_TIMELAPSE_EVENT));
@@ -86,9 +89,19 @@ export function FileDetailDialog({
         // Ignore when an active session already exists.
       }
     }
-    await api.printerCommand("start_print", file.path);
-    onOpenChange(false);
-    navigate("/");
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          PRINTER_PENDING_ACTION_KEY,
+          JSON.stringify({ action: "start_print", started_at: Date.now() }),
+        );
+      }
+      await api.printerCommand("start_print", file.path);
+      onOpenChange(false);
+      navigate("/");
+    } finally {
+      setIsStartingPrint(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -113,8 +126,8 @@ export function FileDetailDialog({
     <Dialog open={open} onOpenChange={resetState}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="break-all font-mono text-base">
-            {file.filename}
+          <DialogTitle className="break-all font-mono text-base" title={file.filename}>
+            {ellipsizeMiddle(file.filename, 46)}
           </DialogTitle>
           <DialogDescription>
             {file.can_be_printed ? "Printable file details" : "File details"}
@@ -200,9 +213,18 @@ export function FileDetailDialog({
             {confirmDelete ? "Confirm Delete?" : "Delete"}
           </Button>
           {file.can_be_printed && (
-            <Button className="gap-2" onClick={handlePrint}>
-              <Play className="h-4 w-4" />
-              Start Print
+            <Button className="gap-2" onClick={handlePrint} disabled={isStartingPrint}>
+              {isStartingPrint ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Start Print
+                </>
+              )}
             </Button>
           )}
         </DialogFooter>

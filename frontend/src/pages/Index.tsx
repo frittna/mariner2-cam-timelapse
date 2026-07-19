@@ -3,6 +3,7 @@ import { PrintProgress } from "@/components/PrintProgress";
 import { PrintControls } from "@/components/PrintControls";
 import { StatusIndicator } from "@/components/StatusIndicator";
 import { api, mapPrinterState, type PrinterStatus } from "@/lib/api";
+import { ellipsizeMiddle } from "@/lib/utils";
 import { WifiOff, CheckCircle2, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,16 +11,18 @@ import { useState, useEffect, useRef } from "react";
 
 const AUTO_TIMELAPSE_KEY = "mariner_auto_timelapse_on_start";
 const AUTO_TIMELAPSE_EVENT = "mariner:auto-timelapse-changed";
+const PRINTER_PENDING_ACTION_KEY = "mariner_printer_pending_action";
+
+type PendingPrinterAction =
+  | "start_print"
+  | "pause_print"
+  | "resume_print"
+  | "cancel_print"
+  | null;
 
 export default function Index() {
   const queryClient = useQueryClient();
   type CamSize = 'MAX' | 'MID' | 'MIN' | 'HIDE';
-  const shortenMiddle = (value: string, max = 56) => {
-    if (value.length <= max) return value;
-    const keep = Math.max(8, Math.floor((max - 3) / 2));
-    return `${value.slice(0, keep)}...${value.slice(-keep)}`;
-  };
-
   const [autoTimelapseEnabled, setAutoTimelapseEnabled] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
@@ -69,22 +72,51 @@ export default function Index() {
   const status: PrinterStatus = data ? mapPrinterState(data.state) : "offline";
   const prevStatusRef = useRef<PrinterStatus>("offline");
 
+  const [pendingPrinterAction, setPendingPrinterAction] = useState<PendingPrinterAction>(null);
+
+  const persistPendingAction = (action: PendingPrinterAction) => {
+    setPendingPrinterAction(action);
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (action === null) {
+      window.localStorage.removeItem(PRINTER_PENDING_ACTION_KEY);
+      return;
+    }
+    window.localStorage.setItem(
+      PRINTER_PENDING_ACTION_KEY,
+      JSON.stringify({ action, started_at: Date.now() }),
+    );
+  };
+
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ["printStatus"] });
 
   const handlePause = async () => {
-    await api.printerCommand("pause_print");
-    refresh();
+    persistPendingAction("pause_print");
+    try {
+      await api.printerCommand("pause_print");
+    } finally {
+      refresh();
+    }
   };
 
   const handleResume = async () => {
-    await api.printerCommand("resume_print");
-    refresh();
+    persistPendingAction("resume_print");
+    try {
+      await api.printerCommand("resume_print");
+    } finally {
+      refresh();
+    }
   };
 
   const handleCancel = async () => {
-    await api.printerCommand("cancel_print");
-    refresh();
+    persistPendingAction("cancel_print");
+    try {
+      await api.printerCommand("cancel_print");
+    } finally {
+      refresh();
+    }
   };
 
 
@@ -113,6 +145,47 @@ export default function Index() {
 
     prevStatusRef.current = status;
   }, [status, data?.selected_file]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(PRINTER_PENDING_ACTION_KEY);
+    if (!raw) {
+      setPendingPrinterAction(null);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as { action?: PendingPrinterAction; started_at?: number };
+      const action = parsed.action ?? null;
+      const ageMs = Date.now() - (parsed.started_at ?? 0);
+      if (!action || ageMs > 120000) {
+        persistPendingAction(null);
+        return;
+      }
+      setPendingPrinterAction(action);
+    } catch {
+      persistPendingAction(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pendingPrinterAction) {
+      return;
+    }
+
+    const resolved =
+      (pendingPrinterAction === "start_print" && (status === "printing" || status === "paused")) ||
+      (pendingPrinterAction === "pause_print" && status === "paused") ||
+      (pendingPrinterAction === "resume_print" && status === "printing") ||
+      (pendingPrinterAction === "cancel_print" && (status === "idle" || status === "offline"));
+
+    if (resolved) {
+      persistPendingAction(null);
+    }
+  }, [pendingPrinterAction, status]);
   const printerName =
     document
       .querySelector('meta[name="printer-display-name"]')
@@ -172,6 +245,12 @@ export default function Index() {
         </div>
         <StatusIndicator status={status} />
       </div>
+      {pendingPrinterAction && (
+        <div className="mb-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+          Waiting for printer confirmation: {pendingPrinterAction.replace("_", " ").replace("_", " ")}...
+        </div>
+      )}
+
       {/* Live camera stream controls. */}
       <div className="cam-wrapper-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px', width: '100%' }}>
   
@@ -278,6 +357,7 @@ export default function Index() {
                 onPause={handlePause}
                 onResume={handleResume}
                 onCancel={handleCancel}
+                pendingAction={pendingPrinterAction}
               />
             </div>
           )}
@@ -324,7 +404,7 @@ export default function Index() {
             boxSizing: 'border-box'
           }}>
             <div style={{ fontSize: '13px', color: '#aaa', fontWeight: 'bold' }}>
-              Model-Preview: <span style={{ color: '#00b4d8' }} title={job.fileName}>{shortenMiddle(job.fileName)}</span>
+              Model-Preview: <span style={{ color: '#00b4d8' }} title={job.fileName}>{ellipsizeMiddle(job.fileName, 56)}</span>
             </div>
           </div>
 

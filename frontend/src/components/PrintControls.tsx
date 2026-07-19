@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Pause, Play, X } from "lucide-react";
+import { Loader2, Pause, Play, X } from "lucide-react";
 import type { PrinterStatus } from "@/lib/api";
 
 interface PrintControlsProps {
@@ -7,6 +7,7 @@ interface PrintControlsProps {
   onPause: () => void;
   onResume: () => void;
   onCancel: () => void;
+  pendingAction?: "start_print" | "pause_print" | "resume_print" | "cancel_print" | null;
 }
 
 export function PrintControls({
@@ -14,6 +15,7 @@ export function PrintControls({
   onPause,
   onResume,
   onCancel,
+  pendingAction = null,
 }: PrintControlsProps) {
   return (
     <div className="flex items-center justify-center gap-3">
@@ -23,14 +25,33 @@ export function PrintControls({
           variant="secondary"
           size="lg"
           className="gap-2"
+          disabled={pendingAction !== null}
         >
-          <Pause className="h-4 w-4" />
-          Pause
+          {pendingAction === "pause_print" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Pausing...
+            </>
+          ) : (
+            <>
+              <Pause className="h-4 w-4" />
+              Pause
+            </>
+          )}
         </Button>
       ) : status === "paused" ? (
-        <Button onClick={onResume} size="lg" className="gap-2">
-          <Play className="h-4 w-4" />
-          Resume
+        <Button onClick={onResume} size="lg" className="gap-2" disabled={pendingAction !== null}>
+          {pendingAction === "resume_print" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Resuming...
+            </>
+          ) : (
+            <>
+              <Play className="h-4 w-4" />
+              Resume
+            </>
+          )}
         </Button>
       ) : null}
 
@@ -40,9 +61,19 @@ export function PrintControls({
           variant="destructive"
           size="lg"
           className="gap-2"
+          disabled={pendingAction !== null}
         >
-          <X className="h-4 w-4" />
-          Cancel
+          {pendingAction === "cancel_print" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Canceling...
+            </>
+          ) : (
+            <>
+              <X className="h-4 w-4" />
+              Cancel
+            </>
+          )}
         </Button>
       )}
     </div>

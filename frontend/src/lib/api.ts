@@ -1,4 +1,4 @@
-export type PrinterStatus = "idle" | "printing" | "paused" | "offline";
+﻿export type PrinterStatus = "idle" | "printing" | "paused" | "offline";
 
 export interface PrintStatusResponse {
   state: string;
@@ -99,9 +99,8 @@ export interface TimelapseUvDetectorStatus {
 export interface TimelapseCaptureSettings {
   capture_offset_ms: number;
   event_window_ms: number;
-  buffer_seconds: number;
   request_timeout_ms: number;
-  grabber_fps: number;
+  grab_mode: "background" | "on_request";
 }
 
 export interface TimelapseStatusResponse {
@@ -114,6 +113,9 @@ export interface TimelapseStatusResponse {
   capture_requests_total: number;
   capture_success_total: number;
   capture_fail_total: number;
+  capture_duration_last_ms: number;
+  capture_duration_avg_ms: number;
+  capture_duration_max_ms: number;
   capture_settings: TimelapseCaptureSettings;
   trigger_mode: "z_top" | "uv_light";
   z_detector_running: boolean;
@@ -402,5 +404,7 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+
 
 
