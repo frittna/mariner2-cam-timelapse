@@ -131,13 +131,13 @@ export default function Index() {
       const stem = rawName
         .replace(/\.[^.]+$/, "")
         .replace(/[^a-zA-Z0-9._-]/g, "_");
-      const ts = new Date().toISOString().replace(/[-:]/g, "").replace(/\..*$/, "").replace("T", "_");
+      const ts = new Date().toISOString().slice(0, 16).replace("T", "--").replace(/:/g, "-");
       api.timelapseStartSession(`${stem}_${ts}`).catch(() => {
         // Ignore: session may already exist.
       });
     }
 
-    if (autoEnabled && prev === "printing" && status !== "printing" && status !== "paused") {
+    if (autoEnabled && (prev === "printing" || prev === "paused") && status !== "printing" && status !== "paused") {
       api.timelapseEndSession().catch(() => {
         // Ignore: no session or backend unavailable.
       });
@@ -239,7 +239,7 @@ export default function Index() {
             <p className="text-sm text-muted-foreground">{printerName}</p>
           )}
           <p className="text-xs text-muted-foreground">
-            Auto Timelapse: {autoTimelapseEnabled ? "ON" : "OFF"} | Session: {timelapseSessionLabel}
+            Timelapse Session: {timelapseSessionLabel}
             {timelapseDisk ? ` | SD free: ${timelapseDisk.free_gb.toFixed(2)} GB` : ""}
           </p>
         </div>

@@ -1,7 +1,7 @@
-🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**           12.july,26 - 16:00
+🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**           19.july,26 - 19:33
 
 It is now workig fine but still work in progress until i tested it more and made final minor changes if needed.
-
+Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing the 4 cpu cores are running at 60-75% load and the Zero2 which is enought trigger thermal throtteling !!
 
 -
 ![grafic6](Screenshot6.jpg)
@@ -20,9 +20,10 @@ It is now workig fine but still work in progress until i tested it more and made
 
 
 Notes:
-Z.top impulses make jittery videos since detection with two ir-sensors (GPIO27+17) and even 10 markings on the z-spindle is not exact enough, better is when the uv-light in the bottom is detected instead or even better is to use a signal from the mainboard and make a 3,3V signal into gpio22. Frames taken when light is on have much more time to store the picture so less jitter. 
+my initial attempt to trigger the Z.top was a fail. impulses make jittery videos since detection with two ir-sensors (GPIO27+17) and even 10 markings on the z-spindle is not exact enough, better is when the uv-light in the bottom is detected instead or even better is to use the signal from the mainboard and make it a 3,3V signal into gpio24. Frames which are taken when light is on have much more time to store the picture is accurate. The nex fail was to make a grabber thich starts and stops for every trigger, now it runs permanently when a timelapse session is running. 
 _
 
+OLD BALLAST: 
 The weired (minor) current-layer display bug is still present like in the source version from amd939.
 _
 
@@ -30,7 +31,7 @@ The .ctb decrytion of a chitubox file was buggy there too by the way, it crashed
 
 _____________________________________________________________________________________________________________________________________________________________________________________________________________________________
 
-**from here on it isn't false, but outdated:**
+**from here on it isn't false, but outdated since there was no timelapse feature present at that time:**
 🔴 Mariner 2 Cam for Pi Zero 2
 
 ### 3D-Printer Monitoring Tool with Camera Support, WLAN OTG-USB-Gadget, Firewall, VPN, Fail2ban, Webmin and a physical shutdown  ###

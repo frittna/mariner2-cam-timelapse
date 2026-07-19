@@ -225,10 +225,15 @@ class TimelapseManager:
         session_metadata = cls.read_session_metadata(session_id)
 
         if not output_name:
-            output_name = (
-                f"timelapse_{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            )
-        output_path = VIDEOS_DIR / f"{output_name}.mp4"
+            output_name = session_id
+
+        output_stem = output_name
+        output_path = VIDEOS_DIR / f"{output_stem}.mp4"
+        suffix = 2
+        while output_path.exists():
+            output_stem = f"{output_name}-{suffix:02d}"
+            output_path = VIDEOS_DIR / f"{output_stem}.mp4"
+            suffix += 1
 
         cmd = [
             "ffmpeg",

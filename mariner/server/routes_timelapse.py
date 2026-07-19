@@ -1,7 +1,10 @@
-﻿import os
+﻿import logging
+import os
+import threading
 import time
 from typing import Optional
 
+import serial
 from flask import Blueprint, jsonify, request, send_file
 
 from mariner.server.timelapse_manager import TimelapseManager
@@ -12,6 +15,9 @@ from mariner.server.timelapse_worker import (
 )
 from mariner.server.z_spindle_detector import ZSpindleDetector
 from mariner.server.uv_light_detector import UVLightDetector
+from mariner.server.utils import retry
+from mariner.exceptions import UnexpectedPrinterResponse
+from mariner.printer import ChiTuPrinter, PrinterState
 
 timelapse_bp = Blueprint("timelapse", __name__, url_prefix="/api/timelapse")
 
@@ -20,6 +26,10 @@ _z_detector: Optional[ZSpindleDetector] = None
 _uv_detector: Optional[UVLightDetector] = None
 _trigger_mode = "uv_light"
 _startup_profile = "HIGH"
+_auto_stop_thread: Optional[threading.Thread] = None
+_auto_stop_stop = threading.Event()
+_auto_stop_seen_printing_for_session: Optional[str] = None
+logger = logging.getLogger(__name__)
 
 
 def _normalize_trigger_mode(value: str) -> str:
@@ -36,6 +46,70 @@ def _apply_trigger_mode(mode: str) -> None:
     if _uv_detector is not None:
         _uv_detector.stop()
         _uv_detector.start()
+
+
+def _read_printer_state() -> Optional[PrinterState]:
+    transient_errors = (UnexpectedPrinterResponse, serial.SerialException)
+    try:
+        with ChiTuPrinter() as printer:
+            status = retry(printer.get_print_status, transient_errors, num_retries=3)
+            return status.state
+    except transient_errors:
+        logger.warning("Auto-timelapse stop: temporary printer status read failure")
+    except Exception:
+        logger.exception("Auto-timelapse stop: printer status read failed")
+    return None
+
+
+def _auto_stop_loop() -> None:
+    global _auto_stop_seen_printing_for_session
+
+    while not _auto_stop_stop.wait(2.0):
+        worker = _timelapse_worker
+        if worker is None or not worker.is_recording:
+            _auto_stop_seen_printing_for_session = None
+            continue
+
+        session_id = worker.current_session_id
+        if not session_id:
+            _auto_stop_seen_printing_for_session = None
+            continue
+
+        state = _read_printer_state()
+        if state is None:
+            continue
+
+        if state in (PrinterState.PRINTING, PrinterState.PAUSED):
+            _auto_stop_seen_printing_for_session = session_id
+            continue
+
+        if _auto_stop_seen_printing_for_session != session_id:
+            # Manual idle sessions must not be auto-closed.
+            continue
+
+        session_dir = worker.end_session()
+        if session_dir is not None:
+            logger.info(
+                "Auto-stopped timelapse session %s because printer state is %s",
+                session_dir.name,
+                state.value,
+            )
+            _auto_stop_seen_printing_for_session = None
+
+
+def _start_auto_stop_watcher() -> None:
+    global _auto_stop_thread
+    if _auto_stop_thread is not None and _auto_stop_thread.is_alive():
+        return
+
+    _auto_stop_stop.clear()
+    _auto_stop_thread = threading.Thread(
+        target=_auto_stop_loop,
+        daemon=True,
+        name="timelapse-auto-stop",
+    )
+    _auto_stop_thread.start()
+
 
 
 
@@ -87,6 +161,7 @@ def init_timelapse() -> None:
         )
 
     _apply_trigger_mode(trigger_mode)
+    _start_auto_stop_watcher()
 
 
 @timelapse_bp.get("/status")
@@ -143,7 +218,7 @@ def session_start():
         return jsonify({"error": "Timelapse not initialized"}), 503
 
     payload = request.get_json(silent=True) or {}
-    session_id = payload.get("session_id") or time.strftime("%Y%m%d_%H%M%S")
+    session_id = payload.get("session_id") or time.strftime("session_%Y-%m-%d--%H-%M")
     started_id = worker.start_session(session_id)
     if started_id is None:
         return jsonify({"error": "Session already active or invalid id"}), 409

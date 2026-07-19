@@ -196,6 +196,15 @@ class TimelapseWorker:
             numeric = default
         return max(minimum, min(maximum, numeric))
 
+    @staticmethod
+    def _unique_session_id(base_session_id: str) -> str:
+        candidate = base_session_id
+        suffix = 2
+        while (SESSIONS_DIR / candidate).exists():
+            candidate = f"{base_session_id}-{suffix:02d}"
+            suffix += 1
+        return candidate
+
     def _apply_profile_to_mediamtx(self, profile: str) -> None:
         settings = PROFILE_SETTINGS.get(profile, PROFILE_SETTINGS["HIGH"])
         api_url = f"http://{self.mediamtx_host}:9997/v3/config/paths/patch/cam"
@@ -223,9 +232,10 @@ class TimelapseWorker:
             if self.is_recording:
                 self._release_session_lock()
                 return None
-            (SESSIONS_DIR / cleaned).mkdir(parents=True, exist_ok=True)
-            self.current_session_id = cleaned
-            self.last_session_id = cleaned
+            unique_session_id = self._unique_session_id(cleaned)
+            (SESSIONS_DIR / unique_session_id).mkdir(parents=True, exist_ok=True)
+            self.current_session_id = unique_session_id
+            self.last_session_id = unique_session_id
             self.frame_counter = 0
             self.is_recording = True
 
@@ -248,7 +258,7 @@ class TimelapseWorker:
 
         self._start_capture_pipeline()
         self._wait_for_buffer_warmup(timeout=1.5)
-        return cleaned
+        return unique_session_id
 
     def end_session(self) -> Optional[Path]:
         with self._lock:
