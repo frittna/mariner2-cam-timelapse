@@ -35,10 +35,9 @@ my initial attempt to trigger the Z.top was a fail. impulses make jittery videos
 _
 
 OLD BALLAST FIXED: 
-The weired (minor) current-layer display bug was found in the source version from amd939.
-_
-
-false again!!: The .ctb decrytion of a chitubox file was buggy there too by the way, it crashed. This is fixed now in a quidck and dirty way but now chitubox .ctb file loads fine and preview pictures are shown too !!! update: the slow preview picture bug with original chitubox files is gone!! UVTOOLS created .ctb files were working fine before but i dont know what fixed it for the originals. Maybe the last chitubox update or i use better GUI refreshing since i added many features to show some response when you do an action on the page.
+The weired (minor) current-layer display bug was found in the source version from amd939. This 'should'be fixed.
+Also the decrytion of an original chitubox slice. ctb file was broken completele in mariner2, it crashed it. This problem was fixed quick and drirt by just skipping a possible crc error. A problem then was that it tool very long to show preview pictures on chitu files in comparison to uv-tools modified files. This problem has vanished TOO now! Original chitubox files, even e.g.2500layers load fine and the preview pictures are shown in 1-2 seconds, not 1-2 min annymore.
+I really don't know what fixed but i assume the last chitubox update did it or maybe now i have faster GUI refreshing (?) since i have added some nice responses from the gui when you do actions on the page.
 
 _____________________________________________________________________________________________________________________________________________________________________________________________________________________________
 
