@@ -49,7 +49,7 @@ If MediaMTX is not running yet, Mariner can still start, but profile patching lo
 ### HIGH
 - 1296x972
 - 25 fps
-- 4 Mbps
+- 5 Mbps
 
 ### MID
 - 1024x768
