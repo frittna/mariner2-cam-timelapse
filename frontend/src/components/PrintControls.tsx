@@ -1,3 +1,4 @@
+﻿import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Pause, Play, X } from "lucide-react";
 import type { PrinterStatus } from "@/lib/api";
@@ -17,6 +18,24 @@ export function PrintControls({
   onCancel,
   pendingAction = null,
 }: PrintControlsProps) {
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const canCancel = status === "printing" || status === "paused";
+
+  useEffect(() => {
+    if (!canCancel || pendingAction !== null) {
+      setConfirmingCancel(false);
+    }
+  }, [canCancel, pendingAction]);
+
+  const handleCancelClick = () => {
+    if (confirmingCancel) {
+      setConfirmingCancel(false);
+      onCancel();
+      return;
+    }
+    setConfirmingCancel(true);
+  };
+
   return (
     <div className="flex items-center justify-center gap-3">
       {status === "printing" ? (
@@ -55,9 +74,9 @@ export function PrintControls({
         </Button>
       ) : null}
 
-      {(status === "printing" || status === "paused") && (
+      {canCancel && (
         <Button
-          onClick={onCancel}
+          onClick={handleCancelClick}
           variant="destructive"
           size="lg"
           className="gap-2"
@@ -71,7 +90,7 @@ export function PrintControls({
           ) : (
             <>
               <X className="h-4 w-4" />
-              Cancel
+              {confirmingCancel ? "Confirm Cancel?" : "Cancel"}
             </>
           )}
         </Button>
@@ -79,3 +98,4 @@ export function PrintControls({
     </div>
   );
 }
+

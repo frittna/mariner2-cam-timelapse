@@ -12,6 +12,7 @@ from mariner.file_formats import SlicedModelFile
 from mariner.file_formats.cipher import xorCipher, computeSHA256Hash
 
 import base64
+import logging
 from Crypto.Cipher import AES
 
 from mariner.file_formats.ctb import CTBFile
@@ -19,6 +20,7 @@ from mariner.file_formats.ctb import CTBFile
 MAGIC_CTB_ENCRYPTED = 0x12FD0107
 HASH_LENGTH = 32
 BHASH = b"32"
+logger: logging.Logger = logging.getLogger(__name__)
 
 about_software = "UVtools"
 secret1 = "hQ36XB6yTk+zO02ysyiowt8yC1buK+nbLWyfY40EXoU="
@@ -225,6 +227,48 @@ def _aes_crypt(enc: bytes, encrypt: bool) -> bytes:
         return Cipher.decrypt(bytes(temp))
 
 
+def _validate_checksum_signature(
+    file_obj,
+    ctb_header: CTBEncryptedHeader,
+    checksum_value: int,
+) -> None:
+    if ctb_header.signature_size <= 0 or ctb_header.signature_offset <= 0:
+        logger.debug("Encrypted CTB has no signature block; skipping checksum validation")
+        return
+
+    file_obj.seek(ctb_header.signature_offset)
+    signature = file_obj.read(ctb_header.signature_size)
+    if len(signature) != ctb_header.signature_size:
+        raise ValueError("Encrypted CTB signature block is truncated")
+
+    checksum_bytes = checksum_value.to_bytes(8, "little")
+    checksum_hash = computeSHA256Hash(checksum_bytes)
+    expected_encrypted_hash = _aes_crypt(checksum_hash, True)
+    expected_signature = expected_encrypted_hash[: ctb_header.signature_size]
+    if signature != expected_signature:
+        logger.warning(
+            "Encrypted CTB checksum signature mismatch. file_signature=%s expected_signature=%s",
+            signature.hex(),
+            expected_signature.hex(),
+        )
+
+
+def _read_preview_from_offset(file_obj, offset: int) -> png.Image:
+    if offset <= 0:
+        raise ValueError("Invalid preview offset")
+
+    file_obj.seek(offset)
+    preview = CTBPreview.unpack(file_obj.read(CTBPreview.get_size()))
+    if preview.image_length <= 0:
+        raise ValueError("Invalid preview image length")
+
+    file_obj.seek(preview.image_offset)
+    data = file_obj.read(preview.image_length)
+    if len(data) != preview.image_length:
+        raise ValueError("Preview image payload is truncated")
+
+    return _read_image(preview.resolution_x, preview.resolution_y, data)
+
 @dataclass(frozen=True)
 class CTBEncryptedFile(SlicedModelFile):
     @classmethod
@@ -253,30 +297,7 @@ class CTBEncryptedFile(SlicedModelFile):
             file.seek(ctb_slicer.machine_name_offset)
             printer_name = file.read(ctb_slicer.machine_name_size).decode()
 
-            # Validate hash
-            checksum_bytes = ctb_slicer.checksum_value.to_bytes(8, "little")
-            checksum_hash = computeSHA256Hash(checksum_bytes)
-            encrypted_hash = _aes_crypt(checksum_hash, True)
-#            file.seek(-HASH_LENGTH, 2)
-#            hash = file.read(HASH_LENGTH)
-             # CPU-TURBO-FIX:
-            hash = b"00000000000000000000000000000000"  # 32 Dummy-Bytes
-            encrypted_hash = b"00000000000000000000000000000000"
-
-            if not (set(hash) == set(encrypted_hash)):
-                print("WARNING: ChiTuBox-checksum differs, modded to just ignore this error..", flush=True)
-#                raise TypeError(
-#                    "The file checksum does not match, modded to ignore problem.\n"
-#                    + str(hash)
-#                    + "\n"
-#                    + str(encrypted_hash)
-#                    + "\n"
-#                    + str(int.from_bytes(hash, "little"))
-#                    + "\n"
-#                    + str(int.from_bytes(encrypted_hash, "little"))
-#                    + "\n"
-#                    + str(int.from_bytes(checksum_hash, "little"))
-#                )
+            _validate_checksum_signature(file, ctb_header, ctb_slicer.checksum_value)
 
             file.seek(ctb_slicer.layer_table_offset)
 
@@ -336,14 +357,19 @@ class CTBEncryptedFile(SlicedModelFile):
                 file.read(CTBEncryptedHeader.get_size())
             )
             file.seek(ctb_header.slicer_offset)
-            # We have to decrypt the block to get the preview information
-            encrypted_block = file.read(CTBEncryptedSlicer.get_size())
+            # Decrypt slicer metadata to resolve preview offsets.
+            encrypted_block = file.read(ctb_header.slicer_size)
             decrypted_block = _aes_crypt(encrypted_block, False)
             ctb_slicer = CTBEncryptedSlicer.unpack(decrypted_block)
-            file.seek(ctb_slicer.large_preview_offset)
-            preview = CTBPreview.unpack(file.read(CTBPreview.get_size()))
+            # Prefer small preview for faster UI thumbnails.
+            for preview_offset in (
+                ctb_slicer.small_preview_offset,
+                ctb_slicer.large_preview_offset,
+            ):
+                try:
+                    return _read_preview_from_offset(file, preview_offset)
+                except (ValueError, struct.error):
+                    continue
 
-            file.seek(preview.image_offset)
-            data = file.read(preview.image_length)
+            raise ValueError("No valid preview block found in encrypted CTB file")
 
-            return _read_image(preview.resolution_x, preview.resolution_y, data)

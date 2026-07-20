@@ -1,19 +1,22 @@
-🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**           19.july,26 - 19:33
-
-It is now workig fine but still work in progress until i tested it more and made final minor changes if needed.
-Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing the 4 cpu cores are running at 60-75% load and the Zero2 which is enought trigger thermal throtteling !!
-
--
-![grafic6](Screenshot6.jpg)
+🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**           20.july,26 - 10:55
+It is now workig fine although i will tested it more.
+Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing the 4 cpu cores are running at 60-75% load and the Zero2 which is enought trigger thermal throtteling !! I have also added visual feedbacks and confirmations on file actions.
 
 -
-![grafic5](Screenshot5.jpg)
+![grafic6](docs/Screenshot6.jpg)
 
 -
-![grafic7](Screenshot7.jpg)
+![grafic5](docs/Screenshot5.jpg)
 
 -
-![grafic8](Screenshot8.jpg)
+![grafic7](docs/Screenshot7.jpg)
+
+-
+![grafic8](docs/Screenshot8.jpg)
+
+-
+CPU is rather busy but still in good range
+![grafic9](docs/Screenshot9.jpg)
 
 -
 ➡️ **[Click here to see details on the timelapse methods](docs/TIMELAPSE_MEDIAMTX_SETUP.md)**
@@ -23,11 +26,11 @@ Notes:
 my initial attempt to trigger the Z.top was a fail. impulses make jittery videos since detection with two ir-sensors (GPIO27+17) and even 10 markings on the z-spindle is not exact enough, better is when the uv-light in the bottom is detected instead or even better is to use the signal from the mainboard and make it a 3,3V signal into gpio24. Frames which are taken when light is on have much more time to store the picture is accurate. The nex fail was to make a grabber thich starts and stops for every trigger, now it runs permanently when a timelapse session is running. 
 _
 
-OLD BALLAST: 
-The weired (minor) current-layer display bug is still present like in the source version from amd939.
+OLD BALLAST FIXED: 
+The weired (minor) current-layer display bug was found in the source version from amd939.
 _
 
-The .ctb decrytion of a chitubox file was buggy there too by the way, it crashed. This is fixed now in a quidck and dirty way but now chitubox .ctb file loads fine and preview pictures are showen too but need 1min(!) - this must be a bug i guess. In UVTOOLS created .ctb files work too and are shown much faster (2sek instead of 1min) but are a bit stretched - not too bad - its an UVTOOLS/Mars3 topic btw as i understand, and never a problem.
+The .ctb decrytion of a chitubox file was buggy there too by the way, it crashed. This is fixed now in a quidck and dirty way but now chitubox .ctb file loads fine and preview pictures are shown too !!! update: the slow preview picture bug with original chitubox files is gone!! UVTOOLS created .ctb files were working fine before but i dont know what fixed it for the originals. Maybe the last chitubox update or i use better GUI refreshing since i added many features to show some response when you do an action on the page.
 
 _____________________________________________________________________________________________________________________________________________________________________________________________________________________________
 
@@ -68,12 +71,12 @@ You can run it yourself by following this tutorial in 1-2 hours (in German at th
 
 ### Screenshots
 
-![grafic1](Screenshot1hide_DB.jpg)
+![grafic1](docs/Screenshot1hide_DB.jpg)
 
-![grafic2](Screenshot1max_DB.jpg)
+![grafic2](docs/Screenshot1max_DB.jpg)
 
-![grafic3](Screenshot3min_FM.jpg)
+![grafic3]docs/(Screenshot3min_FM.jpg)
 
-![grafic4](Screenshot4print_preview.jpg)
+![grafic4](docs/Screenshot4print_preview.jpg)
 
 ---

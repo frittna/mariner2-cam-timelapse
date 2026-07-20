@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import os
 import re
 import time
@@ -162,7 +162,7 @@ class ChiTuPrinter:
 
         # SerialException mid-read is now converted to UnexpectedPrinterResponse
         # by _send_and_read, so it propagates to retry()/api.py which degrades
-        # to CLOSED state — no need to catch it here.
+        # to CLOSED state â€” no need to catch it here.
         data = self._send_and_read(b"M4006")
         selected_file = str(
             self._extract_response_with_regex("ok '([^']+)'\r\n", data).group(1)
@@ -288,15 +288,14 @@ class ChiTuPrinter:
         while attempts < max_readline_attempts and time.monotonic() < deadline:
             line = self._serial_port.readline().decode("utf-8")
             attempts += 1
-            if expected_substring in line:
-                response = line
-                break
             if line:
-                response = line
-
-        self._serial_port.timeout = original_timeout
+                response += line
+            # Multi-line responses need both payload and "ok" terminator.
+            if expected_substring in response and "ok" in response:
+                break
         self._serial_port.read(size=1024)
         return response
 
     def _send(self, data: bytes) -> None:
         self._serial_port.write(data)
+
