@@ -20,6 +20,13 @@ CPU is rather busy but still in good range
 ![grafic9](docs/Screenshot9.jpg)
 
 -
+
+Here is a short demo video. It was only a small test-object and too short to see it, but a good test result for me.
+[Demo-Video ](docs/test_video_Ball_2026-07-19--18-39.mp4)
+-
+
+
+
 ➡️ **[Click here to see details on the timelapse methods](docs/TIMELAPSE_MEDIAMTX_SETUP.md)**
 
 
