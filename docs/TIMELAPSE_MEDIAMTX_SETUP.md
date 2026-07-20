@@ -1,4 +1,4 @@
-﻿# Timelapse setup
+# Timelapse setup
 
 This document describes the current Raspberry Pi timelapse setup used by Mariner.
 
@@ -31,9 +31,9 @@ paths:
     source: rpiCamera
     rpiCameraWidth: 1296
     rpiCameraHeight: 972
-    rpiCameraFPS: 30
-    rpiCameraBitrate: 4000000
-    rpiCameraProfile: main
+    rpiCameraFPS: 25
+    rpiCameraBitrate: 5000000
+    rpiCameraProfile: high
 ```
 
 Mariner updates the active camera profile through:
@@ -48,18 +48,18 @@ If MediaMTX is not running yet, Mariner can still start, but profile patching lo
 
 ### HIGH
 - 1296x972
-- 30 fps
+- 25 fps
 - 4 Mbps
 
 ### MID
 - 1024x768
 - 20 fps
-- 2 Mbps
+- 3 Mbps
 
 ### LOW
 - 640x480
 - 15 fps
-- 800 kbps
+- 1500 kbps
 
 ## Timelapse storage
 
