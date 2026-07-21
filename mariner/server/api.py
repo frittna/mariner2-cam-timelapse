@@ -1,6 +1,8 @@
 import logging
 import os
+import shutil
 import subprocess
+import time
 import traceback
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -24,6 +26,7 @@ from mariner.file_formats.utils import get_file_extension, get_supported_extensi
 from mariner.printer import ChiTuPrinter, PrinterState, PrintStatus
 from mariner.server.utils import (
     read_cached_preview,
+    clear_preview_cache,
     read_cached_sliced_model_file,
     retry,
 )
@@ -37,34 +40,65 @@ api = Blueprint("api", __name__, url_prefix="/api")
 # multiple of layer_height (exposure phase). During retract the Z reading is
 # meaningless for layer estimation, so we hold the last known value.
 _last_z_layer: Optional[int] = None
-_last_z_total_bytes: Optional[int] = None
+_last_z_job_key: Optional[str] = None
+_last_active_status: Optional[PrintStatus] = None
+_last_active_file: str = ""
+_last_active_seen_at: float = 0.0
 
 
 def reset_progress_tracking() -> None:
     """Clear progress tracking state (e.g. between tests)."""
-    global _last_z_layer, _last_z_total_bytes
+    global _last_z_layer, _last_z_job_key
     _last_z_layer = None
-    _last_z_total_bytes = None
+    _last_z_job_key = None
+
+
+def _prepare_progress_tracking(job_key: str) -> None:
+    global _last_z_layer, _last_z_job_key
+    if _last_z_job_key != job_key:
+        _last_z_layer = None
+        _last_z_job_key = job_key
+
+
+def _remember_active_status(print_status: PrintStatus, selected_file: str) -> None:
+    global _last_active_status, _last_active_file, _last_active_seen_at
+    if (
+        print_status.state
+        in (PrinterState.STARTING_PRINT, PrinterState.PRINTING, PrinterState.PAUSED)
+        and selected_file
+    ):
+        _last_active_status = print_status
+        _last_active_file = selected_file
+        _last_active_seen_at = time.monotonic()
+        return
+    _last_active_status = None
+    _last_active_file = ""
+    _last_active_seen_at = 0.0
+
+
+def _get_recent_active_status_fallback(
+    max_age_secs: float = 8.0,
+) -> Optional[Tuple[PrintStatus, str]]:
+    if _last_active_status is None or not _last_active_file:
+        return None
+    if time.monotonic() - _last_active_seen_at > max_age_secs:
+        return None
+    return _last_active_status, _last_active_file
 
 
 def _layer_from_z_position(
     z_pos_mm: Optional[float],
     layer_height_mm: float,
     layer_count: int,
-    total_bytes: int,
 ) -> Optional[int]:
     """Derive current exposed layer from Z. Returns None if Z not in exposure phase.
 
-    MSLA printers retract Z between layers (lift → tilt → descend), so a poll
+    MSLA printers retract Z between layers (lift -> tilt -> descend), so a poll
     can catch Z mid-retract where Z is not near n*layer_height. In that case
     we can't infer the layer and the caller should fall back to the last
     known value.
     """
-    global _last_z_layer, _last_z_total_bytes
-
-    if _last_z_total_bytes != total_bytes:
-        _last_z_layer = None
-        _last_z_total_bytes = total_bytes
+    global _last_z_layer
 
     if z_pos_mm is None or z_pos_mm <= 0 or layer_height_mm <= 0:
         return _last_z_layer
@@ -131,14 +165,23 @@ def print_status() -> Union[str, Response]:
                 num_retries=3,
             )
         except transient_errors:
-            # Treat repeated bad/empty serial responses as a temporary disconnect
-            # so the UI can keep polling and recover without surfacing a 500.
-            reset_progress_tracking()
-            print_status = PrintStatus(state=PrinterState.CLOSED)
-            selected_file = ""
+            fallback = _get_recent_active_status_fallback()
+            if fallback is not None:
+                logger.warning(
+                    "Using recent active print status fallback after transient serial failure"
+                )
+                print_status, selected_file = fallback
+            else:
+                # Treat repeated bad/empty serial responses as a temporary disconnect
+                # so the UI can keep polling and recover without surfacing a 500.
+                reset_progress_tracking()
+                print_status = PrintStatus(state=PrinterState.CLOSED)
+                selected_file = ""
+
+        _remember_active_status(print_status, selected_file)
 
         # An empty selected_file means the printer serial call failed or the
-        # board returned no filename — we can't look up layer metadata without
+        # board returned no filename - we can't look up layer metadata without
         # it, so degrade gracefully like IDLE/CLOSED instead of crashing in
         # read_cached_sliced_model_file's isfile assert.
         if (
@@ -146,9 +189,11 @@ def print_status() -> Union[str, Response]:
             or print_status.state == PrinterState.CLOSED
             or not selected_file
         ):
+            reset_progress_tracking()
             progress = 0.0
             print_details = {}
         else:
+            _prepare_progress_tracking(selected_file)
             sliced_model_file = read_cached_sliced_model_file(
                 config.get_files_directory() / selected_file
             )
@@ -167,7 +212,6 @@ def print_status() -> Union[str, Response]:
                     print_status.z_pos_mm,
                     layer_height_mm,
                     layer_count,
-                    print_status.total_bytes or 0,
                 )
 
             if z_layer is not None:
@@ -386,6 +430,36 @@ def create_directory() -> Union[str, Response]:
     return jsonify({"success": True})
 
 
+
+@api.route("/delete_directory", methods=["POST"])
+def delete_directory() -> Union[str, Response]:
+    path_parameter = str(request.args.get("path", "")).strip()
+    if not path_parameter or path_parameter in (".", ".."):
+        abort(400)
+
+    files_directory_resolved = config.get_files_directory().resolve()
+    target = (config.get_files_directory() / path_parameter).resolve()
+    if (
+        files_directory_resolved not in target.parents
+        or target == files_directory_resolved
+    ):
+        abort(400)
+    if not os.path.isdir(target):
+        abort(400)
+
+    try:
+        shutil.rmtree(target)
+    except OSError:
+        abort(400)
+
+    return jsonify({"success": True})
+
+
+@api.route("/clear_preview_cache", methods=["POST"])
+def clear_preview_cache_route() -> Union[str, Response]:
+    clear_preview_cache()
+    return jsonify({"success": True})
+
 @api.route("/file_preview", methods=["GET"])
 def file_preview() -> Response:
     filename = str(request.args.get("filename"))
@@ -449,3 +523,5 @@ def host_reboot() -> Union[str, Response]:
     logger.warning("Host reboot requested via API")
     subprocess.Popen(["reboot"])
     return jsonify({"success": True})
+
+
