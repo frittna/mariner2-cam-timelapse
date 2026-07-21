@@ -74,6 +74,13 @@ function formatRangeBoundary(tempC: number, unit: TemperatureUnit): string {
 
 type RenderPreset = (typeof RENDER_PRESETS)[number]["value"];
 
+function buildLocalSessionId(prefix: string = "session"): string {
+  const now = new Date();
+  const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}--${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
+  return `${prefix}_${ts}`;
+}
+
+
 export default function Timelapse() {
   const queryClient = useQueryClient();
   const { unit, setUnit } = useTemperatureUnit();
@@ -152,7 +159,7 @@ export default function Timelapse() {
   });
 
   const startSessionMutation = useMutation({
-    mutationFn: () => api.timelapseStartSession(),
+    mutationFn: () => api.timelapseStartSession(buildLocalSessionId()),
     onSuccess: () => {
       toast.success("Timelapse started.");
       queryClient.invalidateQueries({ queryKey: ["timelapse-status"] });
@@ -526,14 +533,6 @@ export default function Timelapse() {
           >
             Test frame
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => triggerTestMutation.mutate()}
-            disabled={mutationPending}
-          >
-            Test trigger
-          </Button>
         </div>
         <div className="text-xs text-muted-foreground">
           Press Start to open a new manual capture session. Each detected trigger should queue one frame.
@@ -848,4 +847,3 @@ export default function Timelapse() {
       </div>
   );
 }
-
