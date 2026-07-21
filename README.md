@@ -1,4 +1,4 @@
-🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**            -         20.july,26 - 10:55
+🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**            -         20.july,26 - 10:55 & Copilot-AI
 
 It is now workig fine although i will test it more.
 Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing in high quality the 4 cpu cores are running at 60-75% load on the Zero2 which is enought to trigger thermal throtteling !! I have also added visual feedbacks and confirmations on file actions and cancelling a print.
@@ -34,10 +34,10 @@ Notes:
 my initial attempt to trigger the Z.top was a fail. impulses make jittery videos since detection with two ir-sensors (GPIO27+17) and even 10 markings on the z-spindle is not exact enough, better is when the uv-light in the bottom is detected instead or even better is to use the signal from the mainboard and make it a 3,3V signal into gpio24. Frames which are taken when light is on have much more time to store the picture is accurate. The nex fail was to make a grabber thich starts and stops for every trigger, now it runs permanently when a timelapse session is running. 
 _
 
-OLD BALLAST FIXED: 
-The weired (minor) current-layer display bug was found in the source version from amd939. This 'should'be fixed.
-Also the decrytion of an original chitubox slice. ctb file was broken completele in mariner2, it crashed it. This problem was fixed quick and drirt by just skipping a possible crc error. A problem then was that it tool very long to show preview pictures on chitu files in comparison to uv-tools modified files. This problem has vanished TOO now! Original chitubox files, even e.g.2500layers load fine and the preview pictures are shown in 1-2 seconds, not 1-2 min annymore.
-I really don't know what fixed but i assume the last chitubox update did it or maybe now i have faster GUI refreshing (?) since i have added some nice responses from the gui when you do actions on the page.
+The loading (decryption) of an original chitubox .ctb slice file was broken for the last months in mariner2, it crashed. This problem was solved quick and drirt by just skipping the crc error. Another problem was that it took very very long to show preview pictures on an original chitubox file in comparison to uv-tools modified files. This problems are fixed or have vanished. I assume that it was the last chitobox update two weeks ago! Now original chitubox files, even e.g.2500+ layers load just fine and the preview pictures are shown in 1-2 seconds, not 1-2 min annymore. phew!
+I don't know what fixed but i assume the last chitubox update changed something in their own ctb versions. I dont't know. 
+
+I have added more visual responses on button and file actions and if you cancel a print. (atm: bug: one or two times it shows printer offline for a second on the first 1-2 layers (im working on it)
 
 _____________________________________________________________________________________________________________________________________________________________________________________________________________________________
 
