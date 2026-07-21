@@ -36,6 +36,10 @@ def read_cached_preview(filename: str) -> bytes:
     return bytes.getvalue()
 
 
+
+def clear_preview_cache() -> None:
+    cache.delete_memoized(read_cached_preview)
+
 TReturn = TypeVar("TReturn")
 
 
