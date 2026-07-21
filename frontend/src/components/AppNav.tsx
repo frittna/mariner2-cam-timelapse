@@ -1,5 +1,5 @@
-﻿import { useQuery } from "@tanstack/react-query";
-import { FolderOpen, Printer, Settings as SettingsIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { FolderOpen, Printer, Settings as SettingsIcon, WifiOff } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import { PowerMenu } from "@/components/PowerMenu";
@@ -29,6 +29,13 @@ export function AppNav() {
     staleTime: 30000,
   });
 
+  const { isError: isHostOffline } = useQuery({
+    queryKey: ["printStatus"],
+    queryFn: api.printStatus,
+    refetchInterval: 5000,
+    retry: 1,
+  });
+
   const tempC = sensorData?.ok ? sensorData.temp_c : null;
 
   return (
@@ -38,6 +45,15 @@ export function AppNav() {
           <div className="flex h-8 w-8 items-center justify-center rounded bg-primary">
             <Printer className="h-4 w-4 text-primary-foreground" />
           </div>
+          {isHostOffline && (
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded border border-destructive/40 bg-destructive/10"
+              title="Host offline"
+              aria-label="Host offline"
+            >
+              <WifiOff className="h-4 w-4 text-destructive" />
+            </div>
+          )}
           <span className="font-display text-lg font-bold tracking-tight">
             Mariner 2 Cam
           </span>
