@@ -29,8 +29,8 @@ PROFILE_SETTINGS = {
         "rpiCameraWidth": 1296,
         "rpiCameraHeight": 972,
         "rpiCameraFPS": 25,
-        "rpiCameraBitrate": 5000000,
-        "rpiCameraProfile": "high",
+        "rpiCameraBitrate": 4500000,
+        "rpiCameraProfile": "main",
         "rpiCameraIDRPeriod": 25,
     },
     "MID": {
@@ -38,15 +38,15 @@ PROFILE_SETTINGS = {
         "rpiCameraHeight": 768,
         "rpiCameraFPS": 20,
         "rpiCameraBitrate": 3000000,
-        "rpiCameraProfile": "high",
+        "rpiCameraProfile": "main",
         "rpiCameraIDRPeriod": 20,
     },
     "LOW": {
         "rpiCameraWidth": 640,
         "rpiCameraHeight": 480,
         "rpiCameraFPS": 15,
-        "rpiCameraBitrate": 1500000,
-        "rpiCameraProfile": "high",
+        "rpiCameraBitrate": 1000000,
+        "rpiCameraProfile": "main",
         "rpiCameraIDRPeriod": 15,
     },
 }
@@ -430,7 +430,7 @@ class TimelapseWorker:
             "-vcodec",
             "mjpeg",
             "-q:v",
-            "2",
+            "3",
             "-",
         ]
 
@@ -583,7 +583,7 @@ class TimelapseWorker:
             "-frames:v",
             "1",
             "-q:v",
-            "2",
+            "3",
             str(frame_path),
         ]
         try:
