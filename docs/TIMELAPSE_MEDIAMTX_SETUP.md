@@ -32,8 +32,8 @@ paths:
     rpiCameraWidth: 1296
     rpiCameraHeight: 972
     rpiCameraFPS: 25
-    rpiCameraBitrate: 5000000
-    rpiCameraProfile: high
+    rpiCameraBitrate: 4500000
+    rpiCameraProfile: main
 ```
 
 Mariner updates the active camera profile through:
@@ -49,7 +49,7 @@ If MediaMTX is not running yet, Mariner can still start, but profile patching lo
 ### HIGH
 - 1296x972
 - 25 fps
-- 5 Mbps
+- 4.5 Mbps
 
 ### MID
 - 1024x768
@@ -59,7 +59,7 @@ If MediaMTX is not running yet, Mariner can still start, but profile patching lo
 ### LOW
 - 640x480
 - 15 fps
-- 1500 kbps
+- 1.5 Mbps
 
 ## Timelapse storage
 
@@ -133,6 +133,6 @@ Healthy output should show:
 On the Pi, Mariner may run from the installed virtualenv package path instead of a checkout.
 If behavior differs from the repository files, verify which runtime file is active before debugging further.
 
-Recommended UV-bottom capture settings: offset 800 ms, event window 800 ms, timeout 4500 ms.
+Recommended UV-bottom capture settings: offset 800 ms, event window 800 ms, timeout 8000 ms.
 
 If buffered capture misses a frame deadline, Mariner falls back to a one-shot ffmpeg snapshot.
