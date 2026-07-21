@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
@@ -27,6 +27,7 @@ import {
   Loader2,
   ArrowLeft,
   FolderPlus,
+  Trash2,
 } from "lucide-react";
 
 function FileIcon({ canBePrinted }: { canBePrinted: boolean }) {
@@ -40,6 +41,7 @@ export default function Files() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [confirmDeleteDirectory, setConfirmDeleteDirectory] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -92,9 +94,35 @@ export default function Files() {
     },
   });
 
+  const deleteDirectoryMutation = useMutation({
+    mutationFn: (targetPath: string) => api.deleteDirectory(targetPath),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files", currentPath] });
+      setConfirmDeleteDirectory(null);
+      toast.success("Folder deleted");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Could not delete folder");
+    },
+  });
+
+  const clearPreviewCacheMutation = useMutation({
+    mutationFn: () => api.clearPreviewCache(),
+    onSuccess: () => {
+      toast.success("Preview cache cleared");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Could not clear preview cache");
+    },
+  });
+
   useEffect(() => {
     if (!newFolderOpen) setNewFolderName("");
   }, [newFolderOpen]);
+
+  useEffect(() => {
+    setConfirmDeleteDirectory(null);
+  }, [currentPath]);
 
   const handleDirectoryClick = (dirname: string) => {
     if (dirname === "..") {
@@ -129,6 +157,16 @@ export default function Files() {
       setIsUploading(false);
       e.target.value = "";
     }
+  };
+
+  const handleDeleteDirectory = (dirname: string) => {
+    if (confirmDeleteDirectory !== dirname) {
+      setConfirmDeleteDirectory(dirname);
+      return;
+    }
+
+    const targetPath = currentPath === "." ? dirname : `${currentPath}/${dirname}`;
+    deleteDirectoryMutation.mutate(targetPath);
   };
 
   const handleCreateFolder = () => {
@@ -281,14 +319,35 @@ export default function Files() {
               </button>
             )}
             {data?.directories.map((dir: DirectoryEntry) => (
-              <button
+              <div
                 key={dir.dirname}
-                onClick={() => handleDirectoryClick(dir.dirname)}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted"
               >
-                <Folder className="h-4 w-4 text-primary" />
-                <span className="font-medium" title={dir.dirname}>{ellipsizeMiddle(dir.dirname, 36)}</span>
-              </button>
+                <button
+                  onClick={() => handleDirectoryClick(dir.dirname)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  <Folder className="h-4 w-4 text-primary" />
+                  <span className="font-medium" title={dir.dirname}>{ellipsizeMiddle(dir.dirname, 36)}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteDirectory(dir.dirname)}
+                  disabled={deleteDirectoryMutation.isPending}
+                  className={
+                    confirmDeleteDirectory === dir.dirname
+                      ? "rounded-md border border-destructive/60 bg-destructive/10 px-2 py-1 text-destructive"
+                      : "rounded-md border border-border bg-muted px-2 py-1 text-muted-foreground hover:border-primary hover:text-foreground"
+                  }
+                  title={confirmDeleteDirectory === dir.dirname ? "Delete folder?" : "Delete folder"}
+                >
+                  {confirmDeleteDirectory === dir.dirname ? (
+                    "Delete?"
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
             ))}
             {data?.files.map((file: FileEntry) => (
               <button
@@ -322,6 +381,24 @@ export default function Files() {
             )}
           </div>
         )}
+      </div>
+      <div className="mt-2 flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-muted-foreground"
+          onClick={() => clearPreviewCacheMutation.mutate()}
+          disabled={clearPreviewCacheMutation.isPending}
+        >
+          {clearPreviewCacheMutation.isPending ? (
+            <>
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              Clearing...
+            </>
+          ) : (
+            "Clear preview cache"
+          )}
+        </Button>
       </div>
 
       <FileDetailDialog
@@ -368,7 +445,7 @@ export default function Files() {
               {createFolderMutation.isPending ? (
                 <>
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  Creatingâ€¦
+                  Creating...
                 </>
               ) : (
                 "Create"
@@ -380,4 +457,10 @@ export default function Files() {
     </div>
   );
 }
+
+
+
+
+
+
 
