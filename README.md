@@ -1,7 +1,7 @@
 🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**            -         20.july,26 - 10:55 & Copilot-AI
 
 It is now workig fine although i will test it more.
-Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing in high quality the 4 cpu cores are running at 60-75% load on the Zero2 which is enought to trigger thermal throtteling !! I have also added visual feedbacks and confirmations on file actions and cancelling a print.
+Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing in high quality the 4 cpu cores are running at 60-75% load on the Zero2 which is enought to maybe trigger thermal throtteling if you dont care! I have also added visual feedback and confirmations on file actions and cancelling a print.
 
 -
 ![grafic6](docs/Screenshot6.jpg)
