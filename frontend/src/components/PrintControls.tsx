@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Pause, Play, X } from "lucide-react";
 import type { PrinterStatus } from "@/lib/api";
@@ -98,4 +98,3 @@ export function PrintControls({
     </div>
   );
 }
-
