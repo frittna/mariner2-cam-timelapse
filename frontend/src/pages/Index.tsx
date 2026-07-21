@@ -131,7 +131,8 @@ export default function Index() {
       const stem = rawName
         .replace(/\.[^.]+$/, "")
         .replace(/[^a-zA-Z0-9._-]/g, "_");
-      const ts = new Date().toISOString().slice(0, 16).replace("T", "--").replace(/:/g, "-");
+      const now = new Date();
+      const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}--${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}`;
       api.timelapseStartSession(`${stem}_${ts}`).catch(() => {
         // Ignore: session may already exist.
       });
@@ -437,5 +438,3 @@ export default function Index() {
     </div>
   );
 }
-
-
