@@ -1,4 +1,4 @@
-﻿export type PrinterStatus = "idle" | "printing" | "paused" | "offline";
+export type PrinterStatus = "idle" | "printing" | "paused" | "offline";
 
 export interface PrintStatusResponse {
   state: string;
@@ -219,6 +219,16 @@ export const api = {
     });
   },
 
+  async deleteDirectory(path: string): Promise<void> {
+    const params = new URLSearchParams({ path });
+    await apiFetch(`/api/delete_directory?${params.toString()}`, {
+      method: "POST",
+    });
+  },
+  async clearPreviewCache(): Promise<void> {
+    await apiFetch("/api/clear_preview_cache", { method: "POST" });
+  },
+
   async hostShutdown(): Promise<void> {
     await apiFetch("/api/host/shutdown", { method: "POST" });
   },
@@ -404,6 +414,7 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
 
 
 
