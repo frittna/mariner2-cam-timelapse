@@ -71,6 +71,8 @@ export default function Index() {
 
   const status: PrinterStatus = data ? mapPrinterState(data.state) : "offline";
   const prevStatusRef = useRef<PrinterStatus>("offline");
+  const idleConfirmCountRef = useRef(0);
+  const autoStartArmedRef = useRef(true);
 
   const [pendingPrinterAction, setPendingPrinterAction] = useState<PendingPrinterAction>(null);
 
@@ -126,7 +128,7 @@ export default function Index() {
       typeof window !== "undefined" &&
       window.localStorage.getItem(AUTO_TIMELAPSE_KEY) === "1";
 
-    if (autoEnabled && prev !== "printing" && status === "printing") {
+    if (autoEnabled && autoStartArmedRef.current && prev !== "printing" && status === "printing") {
       const rawName = data?.selected_file || "auto_print";
       const stem = rawName
         .replace(/\.[^.]+$/, "")
@@ -136,12 +138,27 @@ export default function Index() {
       api.timelapseStartSession(`${stem}_${ts}`).catch(() => {
         // Ignore: session may already exist.
       });
+      autoStartArmedRef.current = false;
     }
 
-    if (autoEnabled && (prev === "printing" || prev === "paused") && status !== "printing" && status !== "paused") {
-      api.timelapseEndSession().catch(() => {
-        // Ignore: no session or backend unavailable.
-      });
+    if (status === "idle") autoStartArmedRef.current = true;
+    if (autoEnabled && (prev === "printing" || prev === "paused")) {
+      if (status === "idle") {
+        idleConfirmCountRef.current += 1;
+        if (idleConfirmCountRef.current >= 3) {
+          api.timelapseEndSession().catch(() => {
+            // Ignore: no session or backend unavailable.
+          });
+          idleConfirmCountRef.current = 0;
+        }
+      } else if (status === "printing" || status === "paused") {
+        idleConfirmCountRef.current = 0;
+      } else {
+        // Ignore transient offline/unknown states for auto-end decisions.
+        idleConfirmCountRef.current = 0;
+      }
+    } else {
+      idleConfirmCountRef.current = 0;
     }
 
     prevStatusRef.current = status;
@@ -438,3 +455,4 @@ export default function Index() {
     </div>
   );
 }
+
