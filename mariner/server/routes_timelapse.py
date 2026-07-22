@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import os
 import threading
 import time
@@ -29,6 +29,8 @@ _startup_profile = "HIGH"
 _auto_stop_thread: Optional[threading.Thread] = None
 _auto_stop_stop = threading.Event()
 _auto_stop_seen_printing_for_session: Optional[str] = None
+_auto_stop_non_printing_streak = 0
+_AUTO_STOP_CONFIRM_POLLS = 3
 logger = logging.getLogger(__name__)
 
 
@@ -62,29 +64,49 @@ def _read_printer_state() -> Optional[PrinterState]:
 
 
 def _auto_stop_loop() -> None:
-    global _auto_stop_seen_printing_for_session
+    global _auto_stop_seen_printing_for_session, _auto_stop_non_printing_streak
 
     while not _auto_stop_stop.wait(2.0):
         worker = _timelapse_worker
         if worker is None or not worker.is_recording:
             _auto_stop_seen_printing_for_session = None
+            _auto_stop_non_printing_streak = 0
             continue
 
         session_id = worker.current_session_id
         if not session_id:
             _auto_stop_seen_printing_for_session = None
+            _auto_stop_non_printing_streak = 0
             continue
 
         state = _read_printer_state()
         if state is None:
             continue
 
-        if state in (PrinterState.PRINTING, PrinterState.PAUSED):
+        if state in (PrinterState.STARTING_PRINT, PrinterState.PRINTING, PrinterState.PAUSED):
             _auto_stop_seen_printing_for_session = session_id
+            _auto_stop_non_printing_streak = 0
             continue
 
         if _auto_stop_seen_printing_for_session != session_id:
             # Manual idle sessions must not be auto-closed.
+            _auto_stop_non_printing_streak = 0
+            continue
+
+        # Only IDLE means print is actually finished. CLOSED is often transient serial loss.
+        if state != PrinterState.IDLE:
+            _auto_stop_non_printing_streak = 0
+            continue
+
+        _auto_stop_non_printing_streak += 1
+        if _auto_stop_non_printing_streak < _AUTO_STOP_CONFIRM_POLLS:
+            logger.info(
+                "Auto-stop candidate for session %s: state=%s (confirm %s/%s)",
+                session_id,
+                state.value,
+                _auto_stop_non_printing_streak,
+                _AUTO_STOP_CONFIRM_POLLS,
+            )
             continue
 
         session_dir = worker.end_session()
@@ -95,6 +117,7 @@ def _auto_stop_loop() -> None:
                 state.value,
             )
             _auto_stop_seen_printing_for_session = None
+            _auto_stop_non_printing_streak = 0
 
 
 def _start_auto_stop_watcher() -> None:
@@ -442,3 +465,5 @@ def run_fifo():
     payload = request.get_json(silent=True) or {}
     max_storage_mb = int(payload.get("max_storage_mb", 2048))
     return jsonify(TimelapseManager.enforce_fifo(max_storage_mb=max_storage_mb))
+
+
