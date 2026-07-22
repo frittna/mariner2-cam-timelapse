@@ -30,8 +30,8 @@ export function AppNav() {
   });
 
   const { isError: isHostOffline } = useQuery({
-    queryKey: ["printStatus"],
-    queryFn: api.printStatus,
+    queryKey: ["hostStatus"],
+    queryFn: api.timelapseStatus,
     refetchInterval: 5000,
     retry: 1,
   });
@@ -95,3 +95,4 @@ export function AppNav() {
     </header>
   );
 }
+
