@@ -1,7 +1,8 @@
-﻿import logging
+import logging
 import os
 import re
 import time
+import threading
 from dataclasses import dataclass
 from enum import Enum
 from types import TracebackType
@@ -35,8 +36,10 @@ class ChiTuPrinter:
     _serial_port: serial.Serial
     # Track serial / printer connection status to allow disconnects
     _is_connected = False
+    _serial_access_lock = threading.Lock()
 
     def __init__(self) -> None:
+        self._has_serial_lock = False
         self._serial_port = serial.Serial(
             baudrate=config.get_printer_baudrate(),
             timeout=0.1,
@@ -49,17 +52,31 @@ class ChiTuPrinter:
         return match
 
     def open(self) -> None:
+        acquired = self._serial_access_lock.acquire(timeout=4.0)
+        if not acquired:
+            logger.warning("Could not acquire printer serial lock within 4s")
+            self._is_connected = False
+            return
+        self._has_serial_lock = True
         try:
             self._serial_port.port = config.get_printer_serial_port()
             self._serial_port.open()
             self._is_connected = True
         except serial.SerialException:
             self._is_connected = False
-
+            if self._has_serial_lock:
+                self._serial_access_lock.release()
+                self._has_serial_lock = False
+            return
     def close(self) -> None:
-        if self._is_connected:
-            self._serial_port.close()
-
+        try:
+            if self._is_connected:
+                self._serial_port.close()
+        finally:
+            self._is_connected = False
+            if self._has_serial_lock:
+                self._serial_access_lock.release()
+                self._has_serial_lock = False
     def __enter__(self) -> "ChiTuPrinter":
         self.open()
         return self
