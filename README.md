@@ -1,6 +1,6 @@
 🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**            -         22.july,26 - 01:30 & Copilot-AI
 
-It is now workig fine although i will test it more.
+It is now workig fine (NO NOT ATM! WORKING ON IT) although i will test it more.
 Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing in high quality the 4 cpu cores are running at loads which could be enought to trigger thermal throtteling if you dont care. I have also added visual feedback and confirmations on file actions and cancelling a print. Many new features.
 
 -
