@@ -152,15 +152,10 @@ def print_status() -> Union[str, Response]:
         # the print status we expected). due to this, we retry at most 3 times here
         # until we have a successful response. see issue #180
         transient_errors = (UnexpectedPrinterResponse, serial.SerialException)
+        selected_file = ""
         try:
             print_status = retry(
                 printer.get_print_status,
-                transient_errors,
-                num_retries=3,
-            )
-
-            selected_file = retry(
-                printer.get_selected_file,
                 transient_errors,
                 num_retries=3,
             )
@@ -176,7 +171,37 @@ def print_status() -> Union[str, Response]:
                 # so the UI can keep polling and recover without surfacing a 500.
                 reset_progress_tracking()
                 print_status = PrintStatus(state=PrinterState.CLOSED)
-                selected_file = ""
+        else:
+            if print_status.state in (
+                PrinterState.STARTING_PRINT,
+                PrinterState.PRINTING,
+                PrinterState.PAUSED,
+            ):
+                try:
+                    selected_file = retry(
+                        printer.get_selected_file,
+                        transient_errors,
+                        num_retries=3,
+                    )
+                except transient_errors:
+                    logger.warning(
+                        "Selected file read failed; keeping status and using recent filename fallback"
+                    )
+                    fallback = _get_recent_active_status_fallback(max_age_secs=30.0)
+                    if fallback is not None:
+                        _, selected_file = fallback
+
+        # get_print_status can return CLOSED on transient serial read failures.
+        # Reuse a very recent active status to avoid UI/offline flapping.
+        if print_status.state == PrinterState.CLOSED:
+            fallback = _get_recent_active_status_fallback(max_age_secs=15.0)
+            if fallback is not None:
+                logger.warning(
+                    "Using recent active print status fallback after CLOSED state"
+                )
+                print_status, fallback_file = fallback
+                if not selected_file:
+                    selected_file = fallback_file
 
         _remember_active_status(print_status, selected_file)
 
