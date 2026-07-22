@@ -193,44 +193,58 @@ def print_status() -> Union[str, Response]:
             progress = 0.0
             print_details = {}
         else:
-            _prepare_progress_tracking(selected_file)
-            sliced_model_file = read_cached_sliced_model_file(
-                config.get_files_directory() / selected_file
-            )
-
             current_byte = print_status.current_byte or 0
-            layer_count = none_throws(sliced_model_file.layer_count)
-            layer_height_mm = sliced_model_file.layer_height_mm
-
-            # Z-derived layer is the ground-truth physical layer. ChiTu D: byte
-            # position runs ahead of actual exposure (firmware reads/buffers
-            # layers before exposing them), so Z is preferred; byte offset is
-            # only a fallback for the pre-exposure ramp where Z isn't usable.
             z_layer: Optional[int] = None
-            if print_status.state in (PrinterState.PRINTING, PrinterState.PAUSED):
-                z_layer = _layer_from_z_position(
-                    print_status.z_pos_mm,
-                    layer_height_mm,
-                    layer_count,
+            current_layer: Optional[int] = None
+            layer_count: Optional[int] = None
+            sliced_model_path = (config.get_files_directory() / selected_file).resolve()
+            files_directory_resolved = config.get_files_directory().resolve()
+            if (
+                files_directory_resolved not in sliced_model_path.parents
+                and sliced_model_path != files_directory_resolved
+            ) or not os.path.isfile(sliced_model_path):
+                logger.warning(
+                    "Skipping print details: selected_file is not available locally: %r",
+                    selected_file,
                 )
-
-            if z_layer is not None:
-                current_layer = z_layer
+                reset_progress_tracking()
+                progress = 0.0
+                print_details = {}
             else:
-                current_layer = _layer_from_byte_offset(
-                    current_byte, sliced_model_file.end_byte_offset_by_layer
-                )
+                _prepare_progress_tracking(selected_file)
+                sliced_model_file = read_cached_sliced_model_file(sliced_model_path)
 
-            progress = 100.0 * (current_layer - 1) / layer_count
+                layer_count = none_throws(sliced_model_file.layer_count)
+                layer_height_mm = sliced_model_file.layer_height_mm
 
-            print_details = {
-                "current_layer": current_layer,
-                "layer_count": sliced_model_file.layer_count,
-                "print_time_secs": sliced_model_file.print_time_secs,
-                "time_left_secs": round(
-                    sliced_model_file.print_time_secs * (100.0 - progress) / 100.0
-                ),
-            }
+                # Z-derived layer is the ground-truth physical layer. ChiTu D: byte
+                # position runs ahead of actual exposure (firmware reads/buffers
+                # layers before exposing them), so Z is preferred; byte offset is
+                # only a fallback for the pre-exposure ramp where Z isn't usable.
+                if print_status.state in (PrinterState.PRINTING, PrinterState.PAUSED):
+                    z_layer = _layer_from_z_position(
+                        print_status.z_pos_mm,
+                        layer_height_mm,
+                        layer_count,
+                    )
+
+                if z_layer is not None:
+                    current_layer = z_layer
+                else:
+                    current_layer = _layer_from_byte_offset(
+                        current_byte, sliced_model_file.end_byte_offset_by_layer
+                    )
+
+                progress = 100.0 * (current_layer - 1) / layer_count
+
+                print_details = {
+                    "current_layer": current_layer,
+                    "layer_count": sliced_model_file.layer_count,
+                    "print_time_secs": sliced_model_file.print_time_secs,
+                    "time_left_secs": round(
+                        sliced_model_file.print_time_secs * (100.0 - progress) / 100.0
+                    ),
+                }
 
             logger.debug(
                 "print_status debug: state=%s file=%r D=(%s/%s) "
@@ -523,5 +537,6 @@ def host_reboot() -> Union[str, Response]:
     logger.warning("Host reboot requested via API")
     subprocess.Popen(["reboot"])
     return jsonify({"success": True})
+
 
 
