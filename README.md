@@ -1,5 +1,5 @@
 🔴 **Mariner 2 Cam Timelapse (Pi Zero 2)**
-🔴 [https://[github.com/frittna/mariner2cam](https://github.com/frittna/mariner2cam/edit/mariner2cam-timelapse/)] * Last Changes: 14:39 - 24.July.2026
+🔴 https://github.com/frittna/mariner2cam/edit/mariner2cam-timelapse - 14:39-24.July.2026
 
 This is the timelapse-focused variant of my Mariner 2 Cam fork.
 It keeps the base Mariner workflow, but adds a practical print-timelapse pipeline and several stability improvements.
