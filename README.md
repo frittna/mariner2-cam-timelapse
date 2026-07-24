@@ -1,5 +1,5 @@
 🔴 **Mariner 2 Cam Timelapse (Pi Zero 2)**
-🔴 https://github.com/frittna/mariner2cam/edit/mariner2cam-timelapse - 14:39-24.July.2026
+🔴 https://github.com/frittna/mariner2cam/edit/mariner2cam-timelapse - 14:39-24.July.2026+AI
 
 This is the timelapse-focused variant of my Mariner 2 Cam fork.
 It keeps the base Mariner workflow, but adds a practical print-timelapse pipeline and several stability improvements.
@@ -19,15 +19,20 @@ It keeps the base Mariner workflow, but adds a practical print-timelapse pipelin
 The earlier Z-top trigger experiments were too jitter-prone in real use.
 This version uses UV-bottom triggering instead (3.3V signal to `GPIO24`, no internal pull-up), which gives more reliable capture timing during real print exposure phases.
 
+For this i use a small opto-coupler board to convert the UV-Light_FAN connector signal on my Mars 3 printer mainboard to 3.3V.
+
+Btw: The lables on my original printer mainboard were mixed up (printed wrong) so if you get confused try the MB-Fan connector instead when you play around with the printable config file to set them up how they shoud act.
+
 Also, frame grabbing now runs as a buffered/background process while a session is active, instead of repeatedly starting/stopping per trigger.
 
-➡️ **[Timelapse + MediaMTX setup details](docs/TIMELAPSE_MEDIAMTX_SETUP.md)**
+Some technical details ➡️ **[Timelapse + MediaMTX details](docs/TIMELAPSE_MEDIAMTX_SETUP.md)**
 
 ## Hardware / runtime notes
 
 - Use an external **5V / 1.5A+** PSU for the Pi.
 - High profile streaming and capture can keep CPU load elevated for long time so active cooling is recommended.
-
+- A complete guide to load it straigt from github will follow i guess but i can't make these things because i dont know how to do it. But you can find a long detailed instruciton how to install mariner2cam on top of mariner2 a bit below. Then modify and create all new files from mariner2cam-timelapse since mariner2cam and compile them again. 
+  
 ## Screenshots / demo
 
 ![grafic6](docs/Screenshot6.jpg)
