@@ -1,4 +1,4 @@
-﻿import json
+import json
 import logging
 import re
 import subprocess
@@ -15,6 +15,11 @@ try:
     import fcntl  # type: ignore
 except ImportError:  # pragma: no cover - not available on Windows
     fcntl = None
+
+try:
+    import RPi.GPIO as GPIO
+except ImportError:  # pragma: no cover - unavailable off Raspberry Pi
+    GPIO = None
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +82,7 @@ class TimelapseWorker:
         mediamtx_port: int = 8554,
         stream_profile: str = "HIGH",
         on_capture_completed: Optional[Callable[[bool], None]] = None,
+        session_led_pin: int = 20,
     ) -> None:
         self.mediamtx_host = mediamtx_host
         self.mediamtx_port = mediamtx_port
@@ -130,14 +136,19 @@ class TimelapseWorker:
         self._grabber_process: Optional[subprocess.Popen] = None
         self._session_lock_file = Path("/tmp/mariner_timelapse_session.lock")
         self._session_lock_fd = None
+        self._session_led_pin = session_led_pin
+        self._session_led_available = False
 
         self._on_capture_completed = on_capture_completed
 
         self._apply_profile_to_mediamtx(self.stream_profile)
+        self._setup_session_led()
+        self._set_session_led(False)
 
     def shutdown(self) -> None:
         self._stop_capture_pipeline()
         self._release_session_lock()
+        self._set_session_led(False)
 
 
     def set_capture_completed_callback(
@@ -217,6 +228,29 @@ class TimelapseWorker:
         except Exception as exc:
             logger.warning("MediaMTX profile update failed: %s", exc)
 
+    def _setup_session_led(self) -> None:
+        if GPIO is None:
+            return
+        try:
+            GPIO.setwarnings(False)
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self._session_led_pin, GPIO.OUT, initial=GPIO.LOW)
+            self._session_led_available = True
+        except Exception:
+            self._session_led_available = False
+            logger.warning(
+                "Failed to initialize timelapse session LED pin %s",
+                self._session_led_pin,
+            )
+
+    def _set_session_led(self, on: bool) -> None:
+        if GPIO is None or not self._session_led_available:
+            return
+        try:
+            GPIO.output(self._session_led_pin, GPIO.HIGH if on else GPIO.LOW)
+        except Exception:
+            logger.exception("Failed updating timelapse session LED")
+
     def start_session(self, session_id: str) -> Optional[str]:
         cleaned = self._sanitize_session_id(session_id)
         if not cleaned:
@@ -238,6 +272,7 @@ class TimelapseWorker:
             self.last_session_id = unique_session_id
             self.frame_counter = 0
             self.is_recording = True
+            self._set_session_led(True)
 
         with self._pending_lock:
             self._pending_frames = 0
@@ -268,6 +303,7 @@ class TimelapseWorker:
             self.is_recording = False
             self.current_session_id = None
             self.frame_counter = 0
+            self._set_session_led(False)
 
         self._wait_for_pending_frames(timeout=20.0)
         self._stop_capture_pipeline()
