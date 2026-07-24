@@ -1,4 +1,4 @@
-﻿import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PrintProgress } from "@/components/PrintProgress";
 import { PrintControls } from "@/components/PrintControls";
 import { StatusIndicator } from "@/components/StatusIndicator";
@@ -104,7 +104,7 @@ export default function Index() {
   };
 
   const handleResume = async () => {
-    persistPendingAction("resume_print");
+    persistPendingAction(null);
     try {
       await api.printerCommand("resume_print");
     } finally {
@@ -455,4 +455,5 @@ export default function Index() {
     </div>
   );
 }
+
 

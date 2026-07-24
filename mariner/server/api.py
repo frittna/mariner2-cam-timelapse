@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import os
 import shutil
 import subprocess
@@ -101,23 +101,24 @@ def _layer_from_z_position(
     global _last_z_layer
 
     if z_pos_mm is None or z_pos_mm <= 0 or layer_height_mm <= 0:
-        return _last_z_layer
+        return None
 
     layer_float = z_pos_mm / layer_height_mm
     nearest = round(layer_float)
     tolerance = 0.1
     if abs(layer_float - nearest) > tolerance:
-        return _last_z_layer
+        return None
     # Z above the last layer is a retract lift, not an exposure position.
     if nearest > layer_count:
-        return _last_z_layer
+        return None
 
     layer = max(1, min(layer_count, nearest))
     # Reject jumps larger than 1 layer: the printer lifts the platform between
     # layers and Z can coincidentally land near a higher layer multiple during
     # the retract. A genuine layer transition is always +1.
     if _last_z_layer is not None and layer > _last_z_layer + 1:
-        return _last_z_layer
+        # likely retract/lift sample; let caller use byte-offset fallback
+        return None
     if _last_z_layer is None or layer > _last_z_layer:
         _last_z_layer = layer
     return _last_z_layer
@@ -567,6 +568,7 @@ def host_reboot() -> Union[str, Response]:
     logger.warning("Host reboot requested via API")
     subprocess.Popen(["reboot"])
     return jsonify({"success": True})
+
 
 
 

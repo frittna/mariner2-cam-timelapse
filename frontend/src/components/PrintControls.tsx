@@ -59,7 +59,7 @@ export function PrintControls({
           )}
         </Button>
       ) : status === "paused" ? (
-        <Button onClick={onResume} size="lg" className="gap-2" disabled={pendingAction !== null}>
+        <Button onClick={onResume} size="lg" className="gap-2" disabled={pendingAction === "pause_print" || pendingAction === "cancel_print" || pendingAction === "start_print"}>
           {pendingAction === "resume_print" ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -98,3 +98,4 @@ export function PrintControls({
     </div>
   );
 }
+
