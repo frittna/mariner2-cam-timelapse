@@ -37,22 +37,30 @@ Some technical details ➡️ **[Timelapse + MediaMTX details](docs/TIMELAPSE_ME
 ## Screenshots / demo
 
 ![grafic6](docs/Screenshot6.jpg)
+#
 
 ![grafic5](docs/Screenshot5.jpg)
+#
 
 ![grafic7](docs/Screenshot7.jpg)
+#
 
 ![grafic8](docs/Screenshot8.jpg)
+#
 
 small opto-coupler board with 3.3V GPOI und additional output:
 ![grafic9](docs/opto-board_24v-3_3V.jpg)
+#
 
-Demo video:
+
+-> Demo video: (the print object is very small so we see nothing of it - its just a test - will print large things soon)
 [Demo-Video](docs/test_video_Ball_2026-07-19--18-39.mp4)
 
----
 
-**from here on it isn't false, but outdated since there was no timelapse feature present at that time:**
+
+
+# from here on it isn't false, but outdated since there was no timelapse feature present at that time:
+
 🔴 Mariner 2 Cam for Pi Zero 2
 
 ### 3D-Printer Monitoring Tool with Camera Support, WLAN OTG-USB-Gadget, Firewall, VPN, Fail2ban, Webmin and a physical shutdown  ###
@@ -90,11 +98,10 @@ You can run it yourself by following this tutorial in 1-2 hours (in German at th
 ### Screenshots
 
 ![grafic1](docs/Screenshot1hide_DB.jpg)
-
+.
 ![grafic2](docs/Screenshot1max_DB.jpg)
-
-![grafic3]docs/(Screenshot3min_FM.jpg)
-
+.
+![grafic3](docs/Screenshot3min_FM.jpg)
+.
 ![grafic4](docs/Screenshot4print_preview.jpg)
-
----
+.
