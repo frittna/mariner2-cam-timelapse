@@ -1,7 +1,9 @@
 🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**            -         22.july,26 - 21:40 & Copilot-AI
 
 It is now workig fine although i will test it more.
-Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing in high quality the 4 cpu cores are running at loads which could be enought to trigger thermal throtteling if you dont care. I have also added visual feedback and confirmations on file actions and cancelling a print. Many new features.
+Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing in high quality the 4 cpu cores are running at loads which could be enought to trigger thermal throtteling if you dont care. I have also added visual feedback and confirmations on file actions and cancelling a print or rendering files 
+A Temperatur Sensor and more UI Colors added too. 
+If the Pi is offlie while website is runnig show an offline symbol.
 
 -
 ![grafic6](docs/Screenshot6.jpg)
@@ -31,13 +33,17 @@ Here is a short demo video. It was only a small test-object and too short to see
 
 
 Notes:
-my initial attempt to trigger the Z.top was a fail. impulses make jittery videos since detection with two ir-sensors (GPIO27+17) and even 10 markings on the z-spindle is not exact enough, better is when the uv-light in the bottom is detected instead or even better is to use the signal from the mainboard and make it a 3,3V signal into gpio24. Frames which are taken when light is on have much more time to store the picture is accurate. The nex fail was to make a grabber thich starts and stops for every trigger, now it runs permanently when a timelapse session is running. 
-_
-The old current layer bug is still present, like in the source of mariner2. has to be done in another attempt.
-The loading (decryption) of an original chitubox .ctb slice file was broken too for the last months in mariner2, it crashed on loading. This problem was solved quick and drirt by just skipping the crc error. Another problem was that it took very very long to show preview pictures on an original chitubox file in comparison to uv-tools modified files. This problems are fixed or have vanished. I assume that it was the last chitobox update two weeks ago! Now original chitubox files, even e.g.2500+ layers load just fine and the preview pictures are shown in 1-2 seconds, not 1-2 min anymore. phew!
-I don't know what fixed but i assume the last chitubox update.
+My initial attempt to trigger the Z.top was a fail but would have made better view for the videos but its almost impossinle because impulses don't come exactly the same time and it will make jittery videos. A detection with two ir-sensors and even 10 markings on the z-spindle is not exact enough, you would have to add a printer top delay which i don't want to.
 
-I have added more visual responses on button and file actions and if you cancel a print.
+Better is to trigger when the uv-light in the bottom is detected instead. Use the signal from the mainboard and make it a 3,3V signal into gpio24. I built a PC817 optocoupler 24V to 3.3V boaed and took the LED-Fan output of my mainboard and tweaked the fan settings with the .txt file for my Mars3 (which has mixed up lables on the mainboard!! on mine, the MB and LED Fan 24V connectors which are not populated but i use both for fan and now light uv-trigger. 
+Frames which are taken when light is on have much more time to store the picture is accurate. 
+The next change i made was to make the grabber start and stop for every trigger, now it runs permanently when a timelapse session is open. 
+
+The old current layer bug was was still present like in the source of mariner2 but SHOULD be fixed now in my last change - looks good so far :)
+Loading (decryption) of an original chitubox .ctb slice file was broken too for the last months in mariner2, it crashed on loading on all my ctb files. This problem was solved quick and drirt by just skipping the crc error so i never had a problem again.
+
+Another problem was that it took very very long to show preview pictures on an original chitubox file in comparison to uv-tools modified files. This problems have vanished. I assume that it was the last chitobox update two weeks ago! Now original chitubox files, even e.g.2000+ layers @0.035mm load just fine and the preview pictures are shown in 1-2 seconds, not 1-2 min anymore. phew!
+
 
 _____________________________________________________________________________________________________________________________________________________________________________________________________________________________
 
