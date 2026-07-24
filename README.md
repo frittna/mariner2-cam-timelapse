@@ -44,8 +44,8 @@ Some technical details ➡️ **[Timelapse + MediaMTX details](docs/TIMELAPSE_ME
 
 ![grafic8](docs/Screenshot8.jpg)
 
-CPU load example:
-![grafic9](docs/Screenshot9.jpg)
+small opto-coupler board with 3.3V GPOI und additional output:
+![grafic9](docs/opto-board_24v-3_3V.jpg)
 
 Demo video:
 [Demo-Video](docs/test_video_Ball_2026-07-19--18-39.mp4)
