@@ -1,51 +1,50 @@
-🔴 **This is an advanced version with the timelapse video function. It can make cool videos of your prints.**            -         22.july,26 - 21:40 & Copilot-AI
+🔴 **Mariner 2 Cam Timelapse (Pi Zero 2)**
+🔴 [https://[github.com/frittna/mariner2cam](https://github.com/frittna/mariner2cam/edit/mariner2cam-timelapse/)] * Last Changes: 14:39 - 24.July.2026
 
-It is now workig fine although i will test it more.
-Use an external 5V 1.5A or stronger power supply for the PI and apply an active cooling fan because when the pi is streaming and capturing in high quality the 4 cpu cores are running at loads which could be enought to trigger thermal throtteling if you dont care. I have also added visual feedback and confirmations on file actions and cancelling a print or rendering files 
-A Temperatur Sensor and more UI Colors added too. 
-If the Pi is offlie while website is runnig show an offline symbol.
+This is the timelapse-focused variant of my Mariner 2 Cam fork.
+It keeps the base Mariner workflow, but adds a practical print-timelapse pipeline and several stability improvements.
 
--
+## What is different in this version
+
+- Timelapse sessions with video rendering (25/30/60 fps presets)
+- Optional skip-frames rendering for long prints
+- UV-bottom trigger mode only (`uv_light`) for more stable captures
+- MediaMTX live camera profile switching (HIGH/MID/LOW)
+- Better serial/status resilience during print polling
+- Better UI feedback for file actions, cancel, and render actions
+- Offline indicator when the Pi host is not reachable
+
+## Timelapse method used
+
+The earlier Z-top trigger experiments were too jitter-prone in real use.
+This version uses UV-bottom triggering instead (3.3V signal to `GPIO24`, no internal pull-up), which gives more reliable capture timing during real print exposure phases.
+
+Also, frame grabbing now runs as a buffered/background process while a session is active, instead of repeatedly starting/stopping per trigger.
+
+➡️ **[Timelapse + MediaMTX setup details](docs/TIMELAPSE_MEDIAMTX_SETUP.md)**
+
+## Hardware / runtime notes
+
+- Use an external **5V / 1.5A+** PSU for the Pi.
+- High profile streaming and capture can keep CPU load elevated for long time so active cooling is recommended.
+
+## Screenshots / demo
+
 ![grafic6](docs/Screenshot6.jpg)
 
--
 ![grafic5](docs/Screenshot5.jpg)
 
--
 ![grafic7](docs/Screenshot7.jpg)
 
--
 ![grafic8](docs/Screenshot8.jpg)
 
--
-CPU is rather busy but still in good range
+CPU load example:
 ![grafic9](docs/Screenshot9.jpg)
 
--
+Demo video:
+[Demo-Video](docs/test_video_Ball_2026-07-19--18-39.mp4)
 
-Here is a short demo video. It was only a small test-object and too short to see it, but a good test result for me.
-[Demo-Video ](docs/test_video_Ball_2026-07-19--18-39.mp4)
--
-
-
-
-➡️ **[Click here to see details on the timelapse methods](docs/TIMELAPSE_MEDIAMTX_SETUP.md)**
-
-
-Notes:
-My initial attempt to trigger the Z.top was a fail but would have made better view for the videos but its almost impossinle because impulses don't come exactly the same time and it will make jittery videos. A detection with two ir-sensors and even 10 markings on the z-spindle is not exact enough, you would have to add a printer top delay which i don't want to.
-
-Better is to trigger when the uv-light in the bottom is detected instead. Use the signal from the mainboard and make it a 3,3V signal into gpio24. I built a PC817 optocoupler 24V to 3.3V boaed and took the LED-Fan output of my mainboard and tweaked the fan settings with the .txt file for my Mars3 (which has mixed up lables on the mainboard!! on mine, the MB and LED Fan 24V connectors which are not populated but i use both for fan and now light uv-trigger. 
-Frames which are taken when light is on have much more time to store the picture is accurate. 
-The next change i made was to make the grabber start and stop for every trigger, now it runs permanently when a timelapse session is open. 
-
-The old current layer bug was was still present like in the source of mariner2 but SHOULD be fixed now in my last change - looks good so far :)
-Loading (decryption) of an original chitubox .ctb slice file was broken too for the last months in mariner2, it crashed on loading on all my ctb files. This problem was solved quick and drirt by just skipping the crc error so i never had a problem again.
-
-Another problem was that it took very very long to show preview pictures on an original chitubox file in comparison to uv-tools modified files. This problems have vanished. I assume that it was the last chitobox update two weeks ago! Now original chitubox files, even e.g.2000+ layers @0.035mm load just fine and the preview pictures are shown in 1-2 seconds, not 1-2 min anymore. phew!
-
-
-_____________________________________________________________________________________________________________________________________________________________________________________________________________________________
+---
 
 **from here on it isn't false, but outdated since there was no timelapse feature present at that time:**
 🔴 Mariner 2 Cam for Pi Zero 2
