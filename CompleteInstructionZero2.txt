@@ -1,5 +1,3 @@
-
-
   Mariner2Cam 3D Printer Monitoring Tool - with Pi Zero W 2 - Trixie 64-bit-lite OS                     Status: June 02, 2026 @frittn
 with Pi-CSI camera support 1296x960 30fps + further measures for secure operation also online
 
