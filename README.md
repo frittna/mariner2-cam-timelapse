@@ -74,7 +74,7 @@ You will need a external power adapter for you Pi for sure and be careful that y
 
  **GitHub-Project:**
  
-  🔴 [https://github.com/frittna/mariner2cam]  * **Last Changes:** 17:53 - 03.June.2026
+  🔴 [[https://github.com/frittna/mariner2cam](https://github.com/frittna/Mariner-2-Cam)]  * **Last Changes:** 17:53 - 03.June.2026
   
   Is a fork from the great Mariner 2 (amd989)    - [https://github.com/amd989/mariner]
   
