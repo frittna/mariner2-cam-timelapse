@@ -227,6 +227,7 @@ def print_status() -> Union[str, Response]:
             current_byte = print_status.current_byte or 0
             z_layer: Optional[int] = None
             current_layer: Optional[int] = None
+            layer_source: str = "none"
             layer_count: Optional[int] = None
             sliced_model_path = (config.get_files_directory() / selected_file).resolve()
             files_directory_resolved = config.get_files_directory().resolve()
@@ -261,15 +262,18 @@ def print_status() -> Union[str, Response]:
 
                 if z_layer is not None:
                     current_layer = z_layer
+                    layer_source = "z"
                 elif print_status.state == PrinterState.PAUSED and _last_z_layer is not None:
                     # While paused, the printer can report high lift Z and buffered byte
                     # offsets that run ahead of the actually exposed layer. Keep the last
                     # stable Z-derived layer to avoid progress bouncing.
                     current_layer = _last_z_layer
+                    layer_source = "paused_hold"
                 else:
                     current_layer = _layer_from_byte_offset(
                         current_byte, sliced_model_file.end_byte_offset_by_layer
                     )
+                    layer_source = "byte"
                 progress = 100.0 * (current_layer - 1) / layer_count
 
                 print_details = {
@@ -283,13 +287,14 @@ def print_status() -> Union[str, Response]:
 
             logger.debug(
                 "print_status debug: state=%s file=%r D=(%s/%s) "
-                "z=%s z_layer=%s progress=%.3f layer=%s/%s",
+                "z=%s z_layer=%s source=%s progress=%.3f layer=%s/%s",
                 print_status.state.name,
                 selected_file,
                 current_byte,
                 print_status.total_bytes,
                 print_status.z_pos_mm,
                 z_layer,
+                layer_source,
                 progress,
                 current_layer,
                 layer_count,
