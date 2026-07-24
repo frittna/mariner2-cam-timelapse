@@ -85,7 +85,7 @@ You will need a external power adapter for you Pi for sure and be careful that y
 ### 📖 Complete Installation Guide & Code
 
 A tested full step-by-step guide to make a fresh Zero 2 W installation can be found here.
-You can run it yourself by following this tutorial in 1-2 hours (in German at the moment).
+You can run it yourself by following this tutorial in 1-2 hours.
 
 ➡️ **[Click here to view: CompleteInstructionZero2.txt](CompleteInstructionZero2.txt)**
 
