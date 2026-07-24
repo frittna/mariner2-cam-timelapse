@@ -261,11 +261,15 @@ def print_status() -> Union[str, Response]:
 
                 if z_layer is not None:
                     current_layer = z_layer
+                elif print_status.state == PrinterState.PAUSED and _last_z_layer is not None:
+                    # While paused, the printer can report high lift Z and buffered byte
+                    # offsets that run ahead of the actually exposed layer. Keep the last
+                    # stable Z-derived layer to avoid progress bouncing.
+                    current_layer = _last_z_layer
                 else:
                     current_layer = _layer_from_byte_offset(
                         current_byte, sliced_model_file.end_byte_offset_by_layer
                     )
-
                 progress = 100.0 * (current_layer - 1) / layer_count
 
                 print_details = {
