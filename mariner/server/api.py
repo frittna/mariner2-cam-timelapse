@@ -113,6 +113,11 @@ def _layer_from_z_position(
         return _last_z_layer
 
     layer = max(1, min(layer_count, nearest))
+    # Reject jumps larger than 1 layer: the printer lifts the platform between
+    # layers and Z can coincidentally land near a higher layer multiple during
+    # the retract. A genuine layer transition is always +1.
+    if _last_z_layer is not None and layer > _last_z_layer + 1:
+        return _last_z_layer
     if _last_z_layer is None or layer > _last_z_layer:
         _last_z_layer = layer
     return _last_z_layer
