@@ -36,7 +36,7 @@ describe("PrintProgress", () => {
 
   it("renders remaining time", () => {
     render(<PrintProgress job={mockJob} />);
-    expect(screen.getByText("2h 2m")).toBeInTheDocument();
+    expect(screen.getByText(/2h 2m \/ \d{2}:\d{2}/)).toBeInTheDocument();
   });
 
   it("renders file name", () => {

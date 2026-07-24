@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import time
+import threading
 from dataclasses import dataclass
 from enum import Enum
 from types import TracebackType
@@ -35,8 +36,10 @@ class ChiTuPrinter:
     _serial_port: serial.Serial
     # Track serial / printer connection status to allow disconnects
     _is_connected = False
+    _serial_access_lock = threading.Lock()
 
     def __init__(self) -> None:
+        self._has_serial_lock = False
         self._serial_port = serial.Serial(
             baudrate=config.get_printer_baudrate(),
             timeout=0.1,
@@ -49,17 +52,31 @@ class ChiTuPrinter:
         return match
 
     def open(self) -> None:
+        acquired = self._serial_access_lock.acquire(timeout=4.0)
+        if not acquired:
+            logger.warning("Could not acquire printer serial lock within 4s")
+            self._is_connected = False
+            return
+        self._has_serial_lock = True
         try:
             self._serial_port.port = config.get_printer_serial_port()
             self._serial_port.open()
             self._is_connected = True
         except serial.SerialException:
             self._is_connected = False
-
+            if self._has_serial_lock:
+                self._serial_access_lock.release()
+                self._has_serial_lock = False
+            return
     def close(self) -> None:
-        if self._is_connected:
-            self._serial_port.close()
-
+        try:
+            if self._is_connected:
+                self._serial_port.close()
+        finally:
+            self._is_connected = False
+            if self._has_serial_lock:
+                self._serial_access_lock.release()
+                self._has_serial_lock = False
     def __enter__(self) -> "ChiTuPrinter":
         self.open()
         return self
@@ -162,7 +179,7 @@ class ChiTuPrinter:
 
         # SerialException mid-read is now converted to UnexpectedPrinterResponse
         # by _send_and_read, so it propagates to retry()/api.py which degrades
-        # to CLOSED state — no need to catch it here.
+        # to CLOSED state â€” no need to catch it here.
         data = self._send_and_read(b"M4006")
         selected_file = str(
             self._extract_response_with_regex("ok '([^']+)'\r\n", data).group(1)
@@ -288,15 +305,14 @@ class ChiTuPrinter:
         while attempts < max_readline_attempts and time.monotonic() < deadline:
             line = self._serial_port.readline().decode("utf-8")
             attempts += 1
-            if expected_substring in line:
-                response = line
-                break
             if line:
-                response = line
-
-        self._serial_port.timeout = original_timeout
+                response += line
+            # Multi-line responses need both payload and "ok" terminator.
+            if expected_substring in response and "ok" in response:
+                break
         self._serial_port.read(size=1024)
         return response
 
     def _send(self, data: bytes) -> None:
         self._serial_port.write(data)
+

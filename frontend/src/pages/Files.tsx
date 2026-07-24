@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/sonner";
+import { ellipsizeMiddle } from "@/lib/utils";
 import {
   Folder,
   FileText,
@@ -26,6 +27,7 @@ import {
   Loader2,
   ArrowLeft,
   FolderPlus,
+  Trash2,
 } from "lucide-react";
 
 function FileIcon({ canBePrinted }: { canBePrinted: boolean }) {
@@ -39,11 +41,13 @@ export default function Files() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [confirmDeleteDirectory, setConfirmDeleteDirectory] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   type CamSize = 'MAX' | 'MID' | 'MIN' | 'HIDE';
 
-  // 1. Zustand absolut synchron initialisieren
+  // Initialize the page-specific camera size immediately.
   const [camSize, setCamSize] = useState<CamSize>(() => {
     if (typeof window !== 'undefined') {
       const saved = window.localStorage.getItem('mariner_cam_size_files');
@@ -51,12 +55,12 @@ export default function Files() {
         return saved as CamSize;
       }
     }
-    return 'MIN'; // Absoluter Erststart-Default
+    return 'MIN';
   });
 
-  // 2. Die Klick-Funktion VOR dem Überschreiben schützen
+  // Ignore repeated clicks for the active size.
   const handleSizeChange = async (size: CamSize) => {
-    // Nur aktiv werden, wenn sich die Größe wirklich vom aktuellen Zustand unterscheidet
+    // Only update when the size actually changes.
     if (size === camSize) return;
 
     setCamSize(size);
@@ -68,7 +72,7 @@ export default function Files() {
       const action = size === 'HIDE' ? 'stop' : 'start';
       await fetch(`/api/camera/${action}`, { method: 'POST' });
     } catch (error) {
-      console.error("Fehler beim Umschalten des Kamera-Dienstes im Backend:", error);
+      console.error("Failed to toggle the camera service:", error);
     }
   };
 
@@ -90,9 +94,35 @@ export default function Files() {
     },
   });
 
+  const deleteDirectoryMutation = useMutation({
+    mutationFn: (targetPath: string) => api.deleteDirectory(targetPath),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files", currentPath] });
+      setConfirmDeleteDirectory(null);
+      toast.success("Folder deleted");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Could not delete folder");
+    },
+  });
+
+  const clearPreviewCacheMutation = useMutation({
+    mutationFn: () => api.clearPreviewCache(),
+    onSuccess: () => {
+      toast.success("Preview cache cleared");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Could not clear preview cache");
+    },
+  });
+
   useEffect(() => {
     if (!newFolderOpen) setNewFolderName("");
   }, [newFolderOpen]);
+
+  useEffect(() => {
+    setConfirmDeleteDirectory(null);
+  }, [currentPath]);
 
   const handleDirectoryClick = (dirname: string) => {
     if (dirname === "..") {
@@ -114,9 +144,29 @@ export default function Files() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    await api.uploadFile(file, currentPath);
-    queryClient.invalidateQueries({ queryKey: ["files", currentPath] });
-    e.target.value = "";
+
+    setIsUploading(true);
+    try {
+      await api.uploadFile(file, currentPath);
+      await queryClient.invalidateQueries({ queryKey: ["files", currentPath] });
+      toast.success("Upload completed");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      toast.error(message);
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteDirectory = (dirname: string) => {
+    if (confirmDeleteDirectory !== dirname) {
+      setConfirmDeleteDirectory(dirname);
+      return;
+    }
+
+    const targetPath = currentPath === "." ? dirname : `${currentPath}/${dirname}`;
+    deleteDirectoryMutation.mutate(targetPath);
   };
 
   const handleCreateFolder = () => {
@@ -155,13 +205,23 @@ export default function Files() {
             size="sm"
             className="gap-1.5"
             onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
           >
-            <Upload className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Upload</span>
+            {isUploading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span className="hidden sm:inline">Uploading...</span>
+              </>
+            ) : (
+              <>
+                <Upload className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Upload</span>
+              </>
+            )}
           </Button>
         </div>
       </div>
-      {/* Mariner2 HD Live Video Stream mit 4-Stage Toggle Control im File Manager */}
+      {/* Live camera stream controls. */}
       <div className="cam-wrapper-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px', width: '100%' }}>
   
   <div className="cam-control-bar" style={{
@@ -188,7 +248,7 @@ export default function Files() {
         boxShadow: camSize === 'HIDE' ? 'none' : '0 0 8px #22c55e',
         transition: 'background-color 0.3s'
       }} />
-      <span id="files-text">{camSize === 'HIDE' ? 'Cam: DEACTIVATED' : 'Cam: ACTIVE'}</span>
+      <span id="files-text">{camSize === 'HIDE' ? 'Camera: Off' : 'Camera: On'}</span>
     </div>
 
     <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -215,7 +275,7 @@ export default function Files() {
     </div>
   </div>
 
-  {/* Physischer Last-Stopp für die Dateiseite */}
+  {/* Remove the iframe entirely when the stream is hidden. */}
   {camSize !== 'HIDE' && (
     <div className="cam-frame-container" style={{
       width: camSize === 'MAX' ? '1296px' : camSize === 'MID' ? '800px' : '480px',
@@ -255,18 +315,39 @@ export default function Files() {
               >
                 <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
                 <Folder className="h-4 w-4 text-primary" />
-                <span className="font-medium">..</span>
+                <span className="font-medium" title="..">..</span>
               </button>
             )}
             {data?.directories.map((dir: DirectoryEntry) => (
-              <button
+              <div
                 key={dir.dirname}
-                onClick={() => handleDirectoryClick(dir.dirname)}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-muted"
               >
-                <Folder className="h-4 w-4 text-primary" />
-                <span className="font-medium">{dir.dirname}</span>
-              </button>
+                <button
+                  onClick={() => handleDirectoryClick(dir.dirname)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  <Folder className="h-4 w-4 text-primary" />
+                  <span className="font-medium" title={dir.dirname}>{ellipsizeMiddle(dir.dirname, 36)}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteDirectory(dir.dirname)}
+                  disabled={deleteDirectoryMutation.isPending}
+                  className={
+                    confirmDeleteDirectory === dir.dirname
+                      ? "rounded-md border border-destructive/60 bg-destructive/10 px-2 py-1 text-destructive"
+                      : "rounded-md border border-border bg-muted px-2 py-1 text-muted-foreground hover:border-primary hover:text-foreground"
+                  }
+                  title={confirmDeleteDirectory === dir.dirname ? "Delete folder?" : "Delete folder"}
+                >
+                  {confirmDeleteDirectory === dir.dirname ? (
+                    "Delete?"
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
             ))}
             {data?.files.map((file: FileEntry) => (
               <button
@@ -275,8 +356,8 @@ export default function Files() {
                 className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
               >
                 <FileIcon canBePrinted={file.can_be_printed} />
-                <span className="min-w-0 flex-1 truncate font-mono text-sm">
-                  {file.filename}
+                <span className="min-w-0 flex-1 truncate font-mono text-sm" title={file.filename}>
+                  {ellipsizeMiddle(file.filename, 40)}
                 </span>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   {file.print_time_secs && (
@@ -300,6 +381,24 @@ export default function Files() {
             )}
           </div>
         )}
+      </div>
+      <div className="mt-2 flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-muted-foreground"
+          onClick={() => clearPreviewCacheMutation.mutate()}
+          disabled={clearPreviewCacheMutation.isPending}
+        >
+          {clearPreviewCacheMutation.isPending ? (
+            <>
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              Clearing...
+            </>
+          ) : (
+            "Clear preview cache"
+          )}
+        </Button>
       </div>
 
       <FileDetailDialog
@@ -346,7 +445,7 @@ export default function Files() {
               {createFolderMutation.isPending ? (
                 <>
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  Creating…
+                  Creating...
                 </>
               ) : (
                 "Create"
@@ -358,3 +457,10 @@ export default function Files() {
     </div>
   );
 }
+
+
+
+
+
+
+

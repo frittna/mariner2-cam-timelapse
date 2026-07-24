@@ -1,43 +1,42 @@
+﻿import { useQuery } from "@tanstack/react-query";
+import { FolderOpen, Printer, Settings as SettingsIcon, WifiOff } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { Printer, FolderOpen } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
+
 import { PowerMenu } from "@/components/PowerMenu";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { useTemperatureUnit } from "@/hooks/use-temperature-unit";
+import { api } from "@/lib/api";
+import {
+  formatTemperature,
+  getTemperatureColorClass,
+} from "@/lib/temperature";
+import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: Printer },
   { to: "/files", label: "Files", icon: FolderOpen },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
-
-function getTempColor(temp: number | null | undefined): string {
-  if (temp == null) return "text-muted-foreground";
-  if (temp < 20) return "text-blue-400";
-  if (temp < 24) return "text-yellow-400";
-  if (temp < 31) return "text-green-400";
-  return "text-red-500";
-}
 
 export function AppNav() {
   const location = useLocation();
+  const { unit } = useTemperatureUnit();
 
-  // DHT22 sensor polling every 60s
   const { data: sensorData } = useQuery({
-    queryKey: ["dht22"],
-    queryFn: async () => {
-      try {
-        const res = await fetch("/api/sensors/dht22");
-        return res.json();
-      } catch (e) {
-        return { ok: false };
-      }
-    },
-    refetchInterval: 60000,
+    queryKey: ["bmp280-nav"],
+    queryFn: api.bmp280Temperature,
+    refetchInterval: 30000,
     staleTime: 30000,
   });
 
+  const { isError: isHostOffline } = useQuery({
+    queryKey: ["hostStatus"],
+    queryFn: api.timelapseStatus,
+    refetchInterval: 5000,
+    retry: 1,
+  });
+
   const tempC = sensorData?.ok ? sensorData.temp_c : null;
-  const humPct = sensorData?.ok ? sensorData.hum_pct : null;
 
   return (
     <header className="sticky top-0 z-40 border-b bg-card/80 backdrop-blur-sm">
@@ -46,6 +45,15 @@ export function AppNav() {
           <div className="flex h-8 w-8 items-center justify-center rounded bg-primary">
             <Printer className="h-4 w-4 text-primary-foreground" />
           </div>
+          {isHostOffline && (
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded border border-destructive/40 bg-destructive/10"
+              title="Host offline"
+              aria-label="Host offline"
+            >
+              <WifiOff className="h-4 w-4 text-destructive" />
+            </div>
+          )}
           <span className="font-display text-lg font-bold tracking-tight">
             Mariner 2 Cam
           </span>
@@ -53,7 +61,9 @@ export function AppNav() {
 
         <nav className="flex items-center gap-1">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.to;
+            const isActive =
+              location.pathname === item.to ||
+              (item.to === "/settings" && location.pathname === "/timelapse");
             return (
               <Link
                 key={item.to}
@@ -70,21 +80,14 @@ export function AppNav() {
               </Link>
             );
           })}
-          
-          {/* DHT22 Sensor Badge */}
+
           <div className="ml-2 flex items-center gap-2 border-l border-border pl-2 text-xs">
-            <div className="flex flex-col items-end gap-0.5">
-              <span className={cn("font-semibold", getTempColor(tempC))}>
-                {tempC != null ? `${tempC.toFixed(1)}°C` : "—.-°C"}
-              </span>
-              <span className="text-muted-foreground">
-                {humPct != null ? `${humPct.toFixed(0)}%` : "—%"}
-              </span>
-            </div>
+            <span className={cn("font-semibold", getTemperatureColorClass(tempC))}>
+              {formatTemperature(tempC, unit)}
+            </span>
           </div>
 
           <div className="ml-1 flex items-center gap-0.5 border-l border-border pl-1">
-            <ThemeSwitcher />
             <PowerMenu />
           </div>
         </nav>
@@ -92,3 +95,4 @@ export function AppNav() {
     </header>
   );
 }
+

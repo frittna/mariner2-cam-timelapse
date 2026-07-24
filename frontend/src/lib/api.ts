@@ -37,6 +37,111 @@ export interface FileDetailsResponse {
   print_time_secs: number;
 }
 
+export interface TimelapseVideoEntry {
+  filename: string;
+  size_mb: number;
+  created_at: string;
+  modified_at: string;
+}
+
+export interface TimelapseSessionEntry {
+  session_id: string;
+  frame_count: number;
+  created_at: string;
+  modified_at: string;
+  active: boolean;
+}
+
+export interface TimelapseDiskSpaceResponse {
+  free_gb: number;
+  used_gb: number;
+  total_gb: number;
+  used_percent: number;
+  sufficient: boolean;
+}
+
+export interface TimelapseRenderResponse {
+  filename: string;
+  size_mb: number;
+  frame_count: number;
+  fps: number;
+  preset: string;
+  capture_profile?: "HIGH" | "MID" | "LOW";
+  stream_path?: string;
+  created_at: string;
+}
+
+export interface TimelapseDetectorStatus {
+  running: boolean;
+  gpio_available: boolean;
+  sensor_a: boolean;
+  sensor_b: boolean;
+  top_event_count: number;
+  last_top_detected_at: string | null;
+  last_event_simulated: boolean;
+  top_entry_sensor: "A" | "B";
+  top_entry_state: boolean[];
+  invert: boolean;
+  last_state: boolean[];
+  last_transition: { from: boolean[]; to: boolean[] } | null;
+}
+
+export interface TimelapseUvDetectorStatus {
+  running: boolean;
+  gpio_available: boolean;
+  interrupt_mode: boolean;
+  sensor_high: boolean;
+  event_count: number;
+  last_detected_at: string | null;
+  pin: number;
+}
+
+export interface TimelapseCaptureSettings {
+  capture_offset_ms: number;
+  event_window_ms: number;
+  request_timeout_ms: number;
+  grab_mode: "background" | "on_request";
+}
+
+export interface TimelapseStatusResponse {
+  ready: boolean;
+  recording: boolean;
+  session_id: string | null;
+  last_session_id: string | null;
+  frame_count: number;
+  pending_frames: number;
+  capture_requests_total: number;
+  capture_success_total: number;
+  capture_fail_total: number;
+  capture_duration_last_ms: number;
+  capture_duration_avg_ms: number;
+  capture_duration_max_ms: number;
+  capture_settings: TimelapseCaptureSettings;
+  trigger_mode: "z_top" | "uv_light";
+  z_detector_running: boolean;
+  uv_detector_running: boolean;
+  stream_profile: "HIGH" | "MID" | "LOW";
+  restart_required: boolean;
+  detector: TimelapseDetectorStatus | TimelapseUvDetectorStatus | null;
+  detector_z: TimelapseDetectorStatus | null;
+  detector_uv: TimelapseUvDetectorStatus | null;
+}
+
+export interface TimelapseProfileDetails {
+  resolution: string;
+  bitrate: string;
+  fps: string;
+}
+
+export interface TimelapseProfilesResponse {
+  active: "HIGH" | "MID" | "LOW";
+  available: Array<"HIGH" | "MID" | "LOW">;
+  restart_required: boolean;
+  stream_path: string;
+  profiles: Record<"HIGH" | "MID" | "LOW", TimelapseProfileDetails>;
+  note: string;
+}
+
 function getCsrfToken(): string | null {
   const meta = document.querySelector('meta[name="csrf-token"]');
   return meta?.getAttribute("content") ?? null;
@@ -114,12 +219,163 @@ export const api = {
     });
   },
 
+  async deleteDirectory(path: string): Promise<void> {
+    const params = new URLSearchParams({ path });
+    await apiFetch(`/api/delete_directory?${params.toString()}`, {
+      method: "POST",
+    });
+  },
+  async clearPreviewCache(): Promise<void> {
+    await apiFetch("/api/clear_preview_cache", { method: "POST" });
+  },
+
   async hostShutdown(): Promise<void> {
     await apiFetch("/api/host/shutdown", { method: "POST" });
   },
 
   async hostReboot(): Promise<void> {
     await apiFetch("/api/host/reboot", { method: "POST" });
+  },
+
+  async timelapseListVideos(): Promise<TimelapseVideoEntry[]> {
+    return apiFetch<TimelapseVideoEntry[]>("/api/timelapse/videos");
+  },
+
+  async timelapseListSessions(): Promise<TimelapseSessionEntry[]> {
+    return apiFetch<TimelapseSessionEntry[]>("/api/timelapse/sessions");
+  },
+
+  async timelapseDeleteVideo(filename: string): Promise<void> {
+    await apiFetch(`/api/timelapse/videos/${encodeURIComponent(filename)}`, {
+      method: "DELETE",
+    });
+  },
+
+
+  async timelapseDeleteSession(sessionId: string): Promise<void> {
+    await apiFetch(
+      `/api/timelapse/sessions/${encodeURIComponent(sessionId)}/delete`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
+  async timelapseDiskSpace(): Promise<TimelapseDiskSpaceResponse> {
+    return apiFetch<TimelapseDiskSpaceResponse>("/api/timelapse/disk-space");
+  },
+
+  async timelapseRender(
+    sessionId: string,
+    preset: "smooth_60fps" | "normal_30fps" | "cinematic_25fps",
+    options?: { outputName?: string; keepSession?: boolean; skipFrames?: number },
+  ): Promise<TimelapseRenderResponse> {
+    return apiFetch<TimelapseRenderResponse>("/api/timelapse/render", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        preset,
+        output_name: options?.outputName,
+        keep_session: Boolean(options?.keepSession),
+        skip_frames: options?.skipFrames ?? 0,
+      }),
+    });
+  },
+
+  async timelapseStatus(): Promise<TimelapseStatusResponse> {
+    return apiFetch<TimelapseStatusResponse>("/api/timelapse/status");
+  },
+
+  async timelapseCaptureSettings(): Promise<TimelapseCaptureSettings> {
+    return apiFetch<TimelapseCaptureSettings>("/api/timelapse/capture-settings");
+  },
+
+  async timelapseSetCaptureSettings(
+    settings: Partial<TimelapseCaptureSettings>,
+  ): Promise<TimelapseCaptureSettings> {
+    return apiFetch<TimelapseCaptureSettings>("/api/timelapse/capture-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+  },
+
+  async timelapseProfiles(): Promise<TimelapseProfilesResponse> {
+    return apiFetch<TimelapseProfilesResponse>("/api/timelapse/profiles");
+  },
+
+  async timelapseSetProfile(
+    profile: "HIGH" | "MID" | "LOW",
+  ): Promise<TimelapseProfilesResponse> {
+    return apiFetch<TimelapseProfilesResponse>(
+      `/api/timelapse/profiles/${profile}`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
+  async timelapseSetDetectorInvert(
+    invert: boolean,
+  ): Promise<TimelapseDetectorStatus> {
+    const value = invert ? "1" : "0";
+    return apiFetch<TimelapseDetectorStatus>(
+      `/api/timelapse/detector/invert?invert=${value}`,
+      { method: "POST" },
+    );
+  },
+
+  async timelapseSetDetectorMode(
+    mode: "z_top" | "uv_light",
+  ): Promise<{ mode: "z_top" | "uv_light" }> {
+    return apiFetch<{ mode: "z_top" | "uv_light" }>(
+      "/api/timelapse/detector/mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      },
+    );
+  },
+
+  async timelapseStartSession(
+    sessionId?: string,
+  ): Promise<{ status: string; session_id: string }> {
+    return apiFetch("/api/timelapse/session/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sessionId ? { session_id: sessionId } : {}),
+    });
+  },
+
+  async timelapseEndSession(): Promise<{
+    status: string;
+    session_id: string;
+    videos?: TimelapseVideoEntry[];
+  }> {
+    return apiFetch("/api/timelapse/session/end", { method: "POST" });
+  },
+
+  async timelapseCapture(): Promise<{ status: string }> {
+    return apiFetch("/api/timelapse/capture", { method: "POST" });
+  },
+
+  async timelapseTestTrigger(): Promise<{
+    status: string;
+    capture_queued: boolean;
+    detector: TimelapseDetectorStatus;
+  }> {
+    return apiFetch("/api/timelapse/test-trigger", { method: "POST" });
+  },
+
+  async bmp280Temperature(): Promise<{
+    ok: boolean;
+    sensor: string;
+    temp_c: number | null;
+    error?: string;
+  }> {
+    return apiFetch("/api/sensors/bmp280");
   },
 
   async printerCommand(
@@ -159,3 +415,8 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+
+
+
+

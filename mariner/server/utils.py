@@ -1,4 +1,4 @@
-import io
+﻿import io
 import os
 import time
 from typing import Callable, Tuple, Type, TypeVar, Union
@@ -35,6 +35,10 @@ def read_cached_preview(filename: str) -> bytes:
     preview_image.write(bytes)
     return bytes.getvalue()
 
+
+
+def clear_preview_cache() -> None:
+    cache.delete_memoized(read_cached_preview)
 
 TReturn = TypeVar("TReturn")
 

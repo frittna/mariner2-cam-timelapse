@@ -10,6 +10,8 @@ from mariner import config
 from mariner.file_formats.utils import get_supported_extensions
 from mariner.server.api import api as api_blueprint
 from mariner.server.app import app as flask_app
+from mariner.server.routes_sensors import sensors_bp
+from mariner.server.routes_timelapse import init_timelapse, timelapse_bp
 from mariner.server.utils import (
     read_cached_preview,
     read_cached_sliced_model_file,
@@ -19,6 +21,9 @@ from itertools import chain
 
 
 flask_app.register_blueprint(api_blueprint)
+flask_app.register_blueprint(sensors_bp)
+flask_app.register_blueprint(timelapse_bp)
+init_timelapse()
 
 
 def render_index() -> str:

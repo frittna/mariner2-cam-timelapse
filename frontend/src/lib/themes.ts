@@ -70,6 +70,104 @@ export const themes: PrinterTheme[] = [
       "sidebar-ring": "142 71% 45%",
     },
   },
+  {
+    id: "prusa",
+    name: "Prusa Orange",
+    accent: "#f45b00",
+    vars: {
+      primary: "22 100% 48%",
+      "primary-foreground": "0 0% 100%",
+      accent: "22 100% 48%",
+      "accent-foreground": "0 0% 100%",
+      ring: "22 100% 48%",
+      "sidebar-primary": "22 100% 48%",
+      "sidebar-ring": "22 100% 48%",
+    },
+  },
+  {
+    id: "formlabs",
+    name: "Formlabs Purple",
+    accent: "#a855f7",
+    vars: {
+      primary: "271 91% 65%",
+      "primary-foreground": "0 0% 100%",
+      accent: "271 91% 65%",
+      "accent-foreground": "0 0% 100%",
+      ring: "271 91% 65%",
+      "sidebar-primary": "271 91% 65%",
+      "sidebar-ring": "271 91% 65%",
+    },
+  },
+  {
+    id: "phrozen",
+    name: "Phrozen Silver",
+    accent: "#94a3b8",
+    vars: {
+      primary: "215 16% 65%",
+      "primary-foreground": "222 47% 11%",
+      accent: "215 16% 65%",
+      "accent-foreground": "222 47% 11%",
+      ring: "215 16% 65%",
+      "sidebar-primary": "215 16% 65%",
+      "sidebar-ring": "215 16% 65%",
+    },
+  },
+  {
+    id: "slate-blue",
+    name: "Slate Blue",
+    accent: "#475569",
+    vars: {
+      primary: "215 25% 40%",
+      "primary-foreground": "0 0% 100%",
+      accent: "215 25% 40%",
+      "accent-foreground": "0 0% 100%",
+      ring: "215 25% 40%",
+      "sidebar-primary": "215 25% 40%",
+      "sidebar-ring": "215 25% 40%",
+    },
+  },
+  {
+    id: "dark-cyan",
+    name: "Deep Cyan",
+    accent: "#0f766e",
+    vars: {
+      primary: "174 77% 26%",
+      "primary-foreground": "0 0% 100%",
+      accent: "174 77% 26%",
+      "accent-foreground": "0 0% 100%",
+      ring: "174 77% 26%",
+      "sidebar-primary": "174 77% 26%",
+      "sidebar-ring": "174 77% 26%",
+    },
+  },
+  {
+    id: "dark-magenta",
+    name: "Dark Magenta",
+    accent: "#86198f",
+    vars: {
+      primary: "295 70% 33%",
+      "primary-foreground": "0 0% 100%",
+      accent: "295 70% 33%",
+      "accent-foreground": "0 0% 100%",
+      ring: "295 70% 33%",
+      "sidebar-primary": "295 70% 33%",
+      "sidebar-ring": "295 70% 33%",
+    },
+  },
+  {
+    id: "dark-blue",
+    name: "Midnight Blue",
+    accent: "#1e3a8a",
+    vars: {
+      primary: "224 64% 33%",
+      "primary-foreground": "0 0% 100%",
+      accent: "224 64% 33%",
+      "accent-foreground": "0 0% 100%",
+      ring: "224 64% 33%",
+      "sidebar-primary": "224 64% 33%",
+      "sidebar-ring": "224 64% 33%",
+    },
+  },
 ];
 
 const THEME_KEY = "mariner-theme";
@@ -80,7 +178,6 @@ export function getStoredThemeId(): string {
 
 export function applyTheme(themeId: string) {
   const theme = themes.find((t) => t.id === themeId) || themes[0];
-  // Apply to both :root and the .dark container so variables aren't shadowed
   const targets = [
     document.documentElement,
     document.querySelector(".dark"),

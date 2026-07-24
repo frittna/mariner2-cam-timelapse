@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+﻿import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PrintControls } from "./PrintControls";
 
@@ -79,7 +79,7 @@ describe("PrintControls", () => {
     expect(onResume).toHaveBeenCalledOnce();
   });
 
-  it("calls onCancel when Cancel is clicked", () => {
+  it("calls onCancel when Cancel is clicked twice", () => {
     const onCancel = vi.fn();
     render(
       <PrintControls
@@ -89,7 +89,15 @@ describe("PrintControls", () => {
         onCancel={onCancel}
       />,
     );
+    // First click shows confirmation
     fireEvent.click(screen.getByText("Cancel"));
+    expect(screen.getByText("Confirm Cancel?")).toBeInTheDocument();
+    expect(onCancel).not.toHaveBeenCalled();
+    // Second click executes cancel
+    fireEvent.click(screen.getByText("Confirm Cancel?"));
     expect(onCancel).toHaveBeenCalledOnce();
   });
 });
+
+
+

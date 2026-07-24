@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import io
 import os
 import pathlib
@@ -512,3 +512,41 @@ class MarinerServerTest(TestCase):
                 supported_extensions=ANY,
             )
         expect(response.status_code).to_equal(200)
+
+    def test_bmp280_sensor_fallback(self) -> None:
+        response = self.client.get("/api/sensors/bmp280")
+        expect(response.status_code).to_equal(200)
+        expect(response.get_json()["ok"]).to_equal(False)
+
+    def test_timelapse_status_endpoint(self) -> None:
+        response = self.client.get("/api/timelapse/status")
+        expect(response.status_code).to_equal(200)
+        body = response.get_json()
+        expect(body["ready"]).to_equal(True)
+        expect("z_detector_running" in body).to_equal(True)
+        expect("detector" in body).to_equal(True)
+        expect("pending_frames" in body).to_equal(True)
+        expect(isinstance(body["pending_frames"], int)).to_equal(True)
+
+    def test_timelapse_sessions_endpoint(self) -> None:
+        response = self.client.get("/api/timelapse/sessions")
+        expect(response.status_code).to_equal(200)
+        body = response.get_json()
+        expect(isinstance(body, list)).to_equal(True)
+    def test_timelapse_profiles_endpoint(self) -> None:
+        response = self.client.get("/api/timelapse/profiles")
+        expect(response.status_code).to_equal(200)
+        body = response.get_json()
+        expect(body["active"]).to_equal("HIGH")
+        expect(body["stream_path"]).to_equal("cam")
+
+    def test_timelapse_test_trigger_endpoint(self) -> None:
+        response = self.client.post("/api/timelapse/test-trigger")
+        expect(response.status_code).to_equal(200)
+        body = response.get_json()
+        expect(body["status"]).to_equal("triggered")
+        expect("detector" in body).to_equal(True)
+
+
+
+
