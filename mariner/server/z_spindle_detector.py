@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import shutil
 import subprocess
 import threading
@@ -20,7 +20,7 @@ class ZSpindleDetector:
         self,
         sensor_a_pin: int = 17,
         sensor_b_pin: int = 27,
-        led_pin: int = 4,
+        led_pin: int = 26,
         debounce_ms: int = 15,
         on_top_detected: Optional[Callable[[], None]] = None,
         top_entry_sensor: str = "A",
