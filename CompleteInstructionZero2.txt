@@ -1,47 +1,47 @@
 
-  Mariner2Cam 3D-Drucker Monitoring Tool - mit Pi Zero W 2 - Trixie 64-bit-lite OS                     Stand: 02.Juni 2026 @frittn
-mit Pi-CSI-Kamera-Support 1296x960 30fps + weitere Maßnahmen für sicheren Betrieb auch online
 
-Github-Code  : Github-Code: https://github.com/frittna/mariner2cam
-Baut auf Code: Github-Code: https://github.com/amd989/mariner
-Änderungen gibt es hauptsächlich im Mariner Frontend füpr die Webseite, und der Datei ctb_encrypted.py.
+  Mariner2Cam 3D Printer Monitoring Tool - with Pi Zero W 2 - Trixie 64-bit-lite OS                     Status: June 02, 2026 @frittn
+with Pi-CSI camera support 1296x960 30fps + further measures for secure operation also online
 
-Mein Drucker: Elegoo Mars 3
-HINWEIS: Neue Chitubox .ctb Datein sind so verschlüsselt, dass Mariner recht langsam auf nur einem Core braucht das Vorschaubild lädt.
-Workaround: mit UVtools die .ctb sclice Datei neu abspeichern, dafür manchmal verzerrte Dartellung des Vorschaubildes
+Github code  : Github code: https://github.com/frittna/Mariner-2-Cam
+Built on code: Github code: https://github.com/amd989/mariner
 
-###### VORBEREITUNG: (Raspberry Pi Imager Tool für Windows)
-Auf dem Zero 2 W geht Trixie 64-bit OS-Lite.;
-Mit starkem externen 1.5-2A Netzteil versorgen da am Drucker definitiv zu schwach versorgt wird. Vermeide unbedingt das "double-power" problem!!
+My printer: Elegoo Mars 3
+NOTE: New Chitubox .ctb files are encrypted in such a way that Mariner is quite slow on only one core when loading the preview image. (fixed in timelapse-video release)
+Workaround: resave the .ctb slice file with UVtools, therefore sometimes distorted display of the preview image
+
+###### PREPARATION: (Raspberry Pi Imager Tool for Windows)
+On the Zero 2 W, Trixie 64-bit OS-Lite works.;
+Power it with a strong external 1.5-2A power supply since it is definitely supplied too weakly on the printer. Absolutely avoid the "double-power" problem!!
 
 ##START##
-Bei der Erstellung der SD-Karte (8GB oder mehr) mit Pi Imager und Windows schon SSH-Zugriff einstellen und Wlan-Settings setzen.
-Image erstellen -> SD-Karte einlegen -> OTG-USB Port verwenden (der innere USB-Port von den 2 Ports) und Power-on..warten..~4min
-Währenddessen die IP des Pi's ermitteln und am bestn fix vergeben (statische IP Reservierung am Internetrouter-Router)
-Dann mit PUTTY oder anderem Tools über die Konsole und SSH verbinden.
-Jetzt noch mit IP und Port 22, später wenn die Sicherheit mit Firewall und VPN hochgeschraubt wird über Port 50222 !
+When creating the SD card (8GB or more) with Pi Imager and Windows, set SSH access and set WLAN settings already.
+Create image -> insert SD card -> use OTG-USB port (the inner USB port of the 2 ports) and power-on..wait..~4 min
+Meanwhile determine the IP of the Pi and best assign it fixed (static IP reservation on the internet router-router)
+Then connect via console and SSH with PUTTY or other tools.
+Now still with IP and port 22, later when security is ramped up with firewall and VPN via port 50222 !
 
 
 
-###### BEGINN DER BEFEHLE:
-#Es mussten bei mir mindestens 4GB Platz vorhanden sein, teste mit dem Befehl: df -h
+###### BEGIN OF COMMANDS:
+#For me at least 4GB had to be available, test with command: df -h
 
-##Los gehts, System updaten:
+##Let's go, update system:
 sudo systemctl restart systemd-timesyncd
 sudo apt update && sudo apt upgrade -y
 
 sudo curl -fsSL https://amd989.github.io/mariner/setup.sh | sudo bash
 sudo apt install mariner3d -y
-sudo mariner3d-setup-pi --size 1280  #(ohne Argument sind es 2GB, bei 8GB SD-Karte max.1280 GB nehmen)
+sudo mariner3d-setup-pi --size 1280  #(without argument it is 2GB, on 8GB SD card take max.1280 GB)
 
-#Da der USB-Gadget also das USB-Laufwerk in Windows 11 nicht gleich angezeigt wird, muss man folgendes tun:
+#Since the USB gadget, i.e. the USB drive in Windows 11, is not displayed immediately, one must do the following:
 sudo nano /etc/modprobe.d/usb_gadget.conf
-#In diese Datei folgendes einfügen:
+#Insert the following into this file:
 options g_mass_storage file=/piusb.bin stall=0 removable=1 idVendor=0x0525 idProduct=0xa4a5 iSerialNumber=123456 ro=0
 
-#dann folgende Datei ändern:
+#then change the following file:
 sudo nano /boot/firmware/config.txt
-#in diese Datei wie folgend unter [all] hinzufügen:
+#add the following under [all] in this file as follows:
 
 [all]
 enable_uart=1
@@ -50,9 +50,9 @@ camera_auto_detect=1
 dtoverlay=vc4-kms-v3d
 dtoverlay=gpio-shutdown,gpio_pin=21,active_low=1,gpio_pull=up,debounce=1000
 
-#Die letzte Zeile ist nur für einen optionalen Shutdown-Button zwischen PIN40 (GPIO21) & PIN39 (GND)
+#The last line is only for an optional shutdown button between PIN40 (GPIO21) & PIN39 (GND)
 
-#Rechte fixen
+#Fix permissions
 sudo chown -R pi:www-data /mnt/usb_share
 sudo chmod -R 666 /mnt/usb_share
 sudo chmod 777 /piusb.bin
@@ -62,19 +62,19 @@ sudo reboot
 
 sudo modprobe -r g_mass_storage
 sudo modprobe g_mass_storage
-#danach sollte das USB-Laufwerk in Windows funktionieren, auch mit schreibe Rechten
-#man sollte das Laufwerk in Windows immer sauber auswerfen oder besser garnicht am OTG-Anschluß
-#anstecken,um das Filesystem nicht zu zerschießen oder ein dirty-bit zu erzeugen - geht ja über WLAN
+#after that the USB drive in Windows should work, also with write permissions
+#one should always eject the drive cleanly in Windows or better not plug in at all at the OTG port
+#to not wreck the filesystem or generate a dirty-bit - it works via WLAN anyway
 
-# JETZT DIE WICHTIGEN KORREKTUREN FÜR MARINER2:
-#Damit mariner mit ganz aktuellen Chitubox .ctb Dateien keine Probleme hat und stecken bleibt MUSS man 
-#folgende Änderungen in der Datei ctb_encrypted.py vornehmen um einen Fehler einfach zu überspringen.
-#Wenn die auto-skripts von oben gelaufen sind, ist der Pfad im folgenden sudo Befehl richtig
-#Wenn nicht dann suche den richtigen Pfad der Datei mit dem Befehl: sudo find / -name "ctb_encrypted.py" 2>/dev/null
+# NOW THE IMPORTANT CORRECTIONS FOR MARINER2:
+#So that mariner has no problems with very current Chitubox .ctb files and does not get stuck, one MUST
+#make the following changes in file ctb_encrypted.py to simply skip an error.
+#If the auto-scripts above was used and successfull, the path in the following sudo command should be correct,
+#if not then search the correct path of the file with command: sudo find / -name "ctb_encrypted.py" 2>/dev/null
 sudo nano /opt/venvs/mariner3d/lib/python3.13/site-packages/mariner/file_formats/ctb_encrypted.py
 
-#in diese ctb_encrypted.py das genau so abändern, die 12 links Leerzeichen beachten!
-ab Zeile 256:  (springen in Zeile mit Strg + Shift + minus)
+#change this in ctb_encrypted.py exactly like this, note the 12 leading spaces!
+from line 256:  (jump to line with Ctrl + Shift + minus)
  
             # Validate hash
             checksum_bytes = ctb_slicer.checksum_value.to_bytes(8, "little")
@@ -83,7 +83,7 @@ ab Zeile 256:  (springen in Zeile mit Strg + Shift + minus)
 #            file.seek(-HASH_LENGTH, 2)
 #            hash = file.read(HASH_LENGTH)
              # CPU-TURBO-FIX:
-            hash = b"00000000000000000000000000000000"  # 32 Dummy-Bytes
+            hash = b"00000000000000000000000000000000"  # 32 dummy bytes
             encrypted_hash = b"00000000000000000000000000000000"
 
             if not (set(hash) == set(encrypted_hash)):
@@ -104,20 +104,20 @@ ab Zeile 256:  (springen in Zeile mit Strg + Shift + minus)
             file.seek(ctb_slicer.layer_table_offset)
 
 
-##(FALLS ein fertig modifiziertes ctb_encrypted.py vom PC auf den Pi kopiert wurde, die Dateirechte anpassen:
+##(IF a ready modified ctb_encrypted.py was copied from PC to Pi, adjust file permissions:
 sudo chown pi:pi /opt/venvs/mariner3d/lib/python3.13/site-packages/mariner/file_formats/ctb_encrypted.py
 sudo chmod 644 /opt/venvs/mariner3d/lib/python3.13/site-packages/mariner/file_formats/ctb_encrypted.py
 #)
 
 
-#wir müssen das Arbeitsverzeichnis wegen RAM-Platzmangel wo anders setzen
-#oberhalb der Zeile "### Edits below this comment will be discarded" eintragen:
+#we must set the working directory elsewhere due to RAM space shortage
+#enter above line "### Edits below this comment will be discarded":
 sudo systemctl edit mariner3d.service       
 [Service]
 Environment="TMPDIR=/var/tmp"
 
 
-#In der Datei __init__.py folgenden Block fast ganz unten, so abändern (Abstände seitlich wieder genau beachten):
+#In file __init__.py change the following block near the very bottom like this (again note exact side spacing):
 sudo nano /opt/venvs/mariner3d/lib/python3.13/site-packages/mariner/server/__init__.py
 
 def main() -> None:
@@ -140,24 +140,24 @@ def main() -> None:
     serve(flask_app, host=config.get_http_host(), port=config.get_http_port(), max_request_body_size=1342177280)
     
 
-#dann:
+#then:
 sudo systemctl daemon-reload
 sudo systemctl restart mariner3d.service
 
-#Damit mariner auch die Rechte für Dateien bearbeiten/Herunterfahren/Ausschalten hat:
+#So that mariner also has permissions for editing files/shutdown/power off:
 sudo systemctl edit --full mariner3d.service
-#im Abschnitt [Service] den User root ändern und die Group=root hinzufügen:
+#in section [Service] change User root and add Group=root:
 User=root
 Group=root
 
 sudo nano /etc/fstab
-#in die letzte Zeile folgende Zeile einfügen:
+#insert the following line in the last line:
 /piusb.bin /mnt/usb_share vfat loop,rw,uid=1000,gid=33,dmask=000,fmask=000 0 0
 
-#neu starten:
+#restart:
 sudo reboot
 
-#Jetzt noch WLAN Standby und serielle Konsolen (wegen Kamera) deaktivieren:
+#Now disable WLAN standby and serial consoles (because of camera):
 sudo iw wlan0 set power_save off     
 sudo systemctl stop serial-getty@ttyS0
 sudo systemctl mask serial-getty@ttyS0
@@ -169,13 +169,13 @@ sudo systemctl mask serial-getty@ttyAMA0
 #############################################################################
 #############################################################################
 
-### OPTIONAL: Samba-Netzwerklaufwerk einrichten (für Windows Netzwerke etc.)
-## später im Betrieb Vorsicht wegen exklusiven Zugriff, ist eher ein nice to have feature
-# 1.Samba installieren:
+### OPTIONAL: Set up Samba network drive (for Windows networks etc.)
+## later in operation be careful because of exclusive access, it is more a nice to have feature
+# 1.Install Samba:
 sudo apt install -y samba
-# 2.Die Konfiguration bearbeiten:
+# 2.Edit the configuration:
 sudo nano /etc/samba/smb.conf
-#ganz am Ende der Datei folgenden Block einfügen speichern, (Strg-O, Enter, Strg-X)
+#insert the following block at the very end of the file and save, (Ctrl-O, Enter, Ctrl-X)
 [3D-Printer_USB]
    comment = Mariner2 3D-Print USB Share
    path = /mnt/usb_share
@@ -186,35 +186,35 @@ sudo nano /etc/samba/smb.conf
    directory mask = 0777
    force user = pi
 
-# 3.Samba-Dienst neu starten, um Freigabe zu aktivieren:
+# 3.Restart Samba service to activate share:
 sudo systemctl restart smbd
-#Zugriff über Netzwerkadresse zb. \\192.168.X.XXX\3D-Printer_USB
-## SAMBA Deaktivieren ? sollte man spätestens nachher tun da es einfach Konfikte geben wird: 
+#Access via network address e.g. \\192.168.X.XXX\3D-Printer_USB
+## DISABLE SAMBA ? should be done at the latest afterwards since there will simply be conflicts: 
 sudo systemctl stop smbd nmbd
 sudo systemctl disable smbd nmbd
 
 -----------------------------------
 
-### OPTIONAL -  WEBMIN Installieren, Zeilen einzeln eingeben:
+### OPTIONAL -  Install WEBMIN, enter lines one by one:
 curl url -o webmin-sectup-repo.sh https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh
 sudo sh webmin-setup-repo.sh -f
 sudo apt-get install webmin --install-recommends -y
-#Zugriff dann möglich über: https://<192.168.X.XXX>:10000
+#Access then possible via: https://<192.168.X.XXX>:10000
 
 
 #############################################################################
 
 
 ########## Pi-CAMERA SUPPORT Zero 2
-# Wichtig ->Kamera-Blockade durch systemd/Pipewire lösen: (Fehlermeldungen falls nicht vohanden ignorieren)
+# Important -> solve camera blockade by systemd/Pipewire: (ignore error messages if not available)
 systemctl --user stop pipewire wireplumber pipewire.socket 2>/dev/null
 systemctl --user disable pipewire wireplumber pipewire.socket 2>/dev/null
 systemctl --user mask pipewire wireplumber pipewire.socket
 sudo killall -9 pipewire wireplumber 2>/dev/null
-#libcamera installieren, werden von mediamtx verwendet:
+#install libcamera, are used by mediamtx:
 sudo apt update && sudo apt install -y rpicam-apps libcamera-apps
 
-#ganzen Block einfügen und ausführen:
+#insert and execute whole block:
 sudo mkdir -p /etc/mediamtx
 cd /tmp
 URL_HOST="github.com"
@@ -225,7 +225,7 @@ sudo mv mediamtx /usr/bin/
 sudo mv mediamtx.yml /etc/mediamtx/
 sudo chmod +x /usr/bin/mediamtx
 
-#ganzen Block einfügen und ausführen:
+#insert and execute whole block:
 sudo tee /etc/systemd/system/mediamtx.service << 'EOF'
 [Unit]
 Description=MediaMTX RTSP / WebRTC Server
@@ -243,15 +243,15 @@ WantedBy=multi-user.target
 EOF
 
 sudo nano /etc/mediamtx/mediamtx.yml
-#folgendes suchen und kontrollieren dass kein # davor seht:
+#search the following and check that there is no # in front:
 webrtc: yes
 webrtcAddress: :8889
 webrtcLocalUDPAddress: :8189
 webrtcIPsFromInterfaces: yes
 webrtcAdditionalHosts: [100.99.99.99]
-#da du diese IP im Moment nicht wissen kannst muss du sie später nochmal eintragen, oder wenn das VPN-Zertifikat abläuft
+#since you cannot know this IP at the moment you must enter it again later, or when the VPN certificate expires
 
-#folgenden Block genau so abändern, beachte die gelöschten [] nach webrtcICEServers2:
+#change the following block exactly like this, note the removed [] after webrtcICEServers2:
 
 webrtcICEServers2:
   - url: stun:stun.l.google.com:19302
@@ -261,67 +261,67 @@ webrtcICEServers2:
   # password: ''
   # clientOnly: false
 
-#und ganz am Ende der selben Datei nach all_others: das so einfügen (seitliche Abstände beachten!):
+#and at the very end of the same file after all_others: insert this (note side spacing!):
   all_others:
   cam:
     source: rpiCamera
     rpiCameraWidth: 1296
     rpiCameraHeight: 972
-    rpiCameraFps: 30              # 15 falls schonender sein soll
-    rpiCameraBitRate: 4000000     # erhöht auf 4 Mbps
+    rpiCameraFps: 30              # 15 if it should be gentler
+    rpiCameraBitRate: 4000000     # increased to 4 Mbps
     rpiCameraProfile: main
 
-### MediaMTX als Systemdienst aktivieren und starten
+### Enable and start MediaMTX as system service
 sudo systemctl daemon-reload
 sudo systemctl enable mediamtx.service
 sudo systemctl restart mediamtx.service
 
-### Frontend-Fixes:
-#den folgenden block ausführen:
+### Frontend fixes:
+#execute the following block:
 sudo tee -a /opt/venvs/mariner3d/lib/python3.13/site-packages/mariner/server/app.py << 'EOF'
 
-# Erlaubt dem Frontend, die Kamera-Last auf dem Pi komplett abzuschalten
+# Allows the frontend to fully switch off camera load on the Pi
 @app.route('/api/camera/<action>', methods=['POST'])
 @csrf.exempt
 def control_camera(action: str):
     if action == 'stop':
         import subprocess
         subprocess.run(["sudo", "systemctl", "stop", "mediamtx"])
-        return {"status": "Kamera gestoppt, CPU entlastet"}, 200
+        return {"status": "Camera stopped, CPU relieved"}, 200
     elif action == 'start':
         import subprocess
         subprocess.run(["sudo", "systemctl", "start", "mediamtx"])
-        return {"status": "Kamera gestartet"}, 200
-    return {"error": "Ungueltige Aktion"}, 400
+        return {"status": "Camera started"}, 200
+    return {"error": "Invalid action"}, 400
 EOF
 
 
-#    Halbzeit! - Nun fehlt noch die Implementierung der Pi Kamera und weitere Maßnahmen am Frontend,
-#    Zusätzlich werden jetzt wichtige Sicherheits-Maßnahmen gemacht, Samba-Share (lieber nur auf aktiv), 
-#    Webmin als grafisches Admin-Tool für den Webbrowser am PC + Fail2Ban (brute force Attacken Abwehr)
-#    und Tailscape als VPN-Dienst installiert, um Mariner2 auch von außen sicher zu erreichen.
+#    Half-time! - Now the implementation of the Pi camera and further measures in the frontend are still missing,
+#    In addition, important security measures are now made, Samba share (prefer only active when needed), 
+#    Webmin as graphical admin tool for web browser on PC + Fail2Ban (brute force attack defense)
+#    and Tailscape as VPN service are installed to securely reach Mariner2 also from outside.
 #    ----------------------------------------------------------------------------
 
 
 
 ######################################################################################################
-#NUN AM PC DIE DATEI ÖFFNEN: C:\mariner\frontend\src\pages\Index.tsx und den gesamten Inhalt ersetzen:
+#NOW OPEN THE FILE ON PC: C:\mariner\frontend\src\pages\Index.tsx and replace the entire content:
 ######################################################################################################
 
 
-#DAS SELBE AM PC MIT DER DATEI : C:\mariner\frontend\src\pages\Files.tsx machen und alles ersetzten.
+#DO THE SAME ON PC WITH FILE : C:\mariner\frontend\src\pages\Files.tsx and replace everything.
 #####
 
 
-### das gerade veränderte Frontend jetzt am PC kompilieren und auf den Pi übertragen:
-Dazu jetzt in Windows das Softwarepaket zum Kompilieren installieren: Installer: node-v24.16.0-x64.msi (Node.js install googlen)
-Öffne die Windows-Eingabeaufforderung (cmd) auf deinem PC und gehe in den RICHTIGEN (!) Ordner Frontend:
+### now compile the frontend just changed on PC and transfer to Pi:
+For this now install the software package for compiling on Windows: Installer: node-v24.16.0-x64.msi (google Node.js install)
+Open Windows command prompt (cmd) on your PC and go to the CORRECT (!) frontend folder:
 cd C:\mariner\frontend
 npm run build -- --base=./
-# Den erzeugten Ordner "dist" aus mariner/frontend mit der Samba-Freigabe auf den Pi kopieren. Windows-Netzlaufwerk lieber wieder trennen
-# Danach im Putty-Terminal des Pi den Ordner an die richtige Stelle kopieren:
+# Copy the generated folder "dist" from mariner/frontend to the Pi with the Samba share. Better disconnect Windows network drive again
+# Then in Putty terminal of Pi copy the folder to the correct place:
 
-#Am Zero 2 W - Frontend-Refresh:
+#On Zero 2 W - frontend refresh:
 sudo rm -rf /opt/venvs/mariner3d/dist
 sudo mkdir -p /opt/venvs/mariner3d/dist
 sudo cp -r /mnt/usb_share/dist/* /opt/venvs/mariner3d/dist/
@@ -330,134 +330,167 @@ sudo chmod -R 755 /opt/venvs/mariner3d/dist
 rm -rf /mnt/usb_share/dist/
 sudo systemctl restart mariner3d.service
 
-##FERTIG## sudo reboot
+##DONE## sudo reboot
 
-Warten bis komplett neu gestartet hat - 2 Minuten+ mindestens.
+Wait until it has completely restarted - 2 minutes+ at least.
 
-#Den mariner Status prüfen? ->                   sudo systemctl status mariner3d.service
+#Check mariner status? ->                   sudo systemctl status mariner3d.service
 
-#Einsicht in die mariner-Logs hat man unter ->   sudo journalctl -u mariner3d.service -n 40 --no-pager
+#Insight into mariner logs is available under ->   sudo journalctl -u mariner3d.service -n 40 --no-pager
 
-Mariner2 Webseiten im Browser laden:             http://192.168.0.XXX:5000/ 
+Load Mariner2 websites in browser:             http://192.168.0.XXX:5000/ 
 
 ------------------------------------
 
 # ==============================================================================
-# NOCH EIN PAAR SICHERHEITS MASSNAHMEN#
+# A FEW MORE SECURITY MEASURES#
 # ==============================================================================
-# 1. Firewall installieren und absichern:
+# 1. Install and secure firewall:
 sudo apt install ufw -y
 
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-# Ports für MediaMTX (Stream & Steuerung):
+# Ports for MediaMTX (stream & control):
 sudo ufw allow 8889/tcp                             # MediaMTX WebRTC/HLS
 sudo ufw allow 8554/tcp                             # MediaMTX RTSP
 sudo ufw allow 8189/udp				    # WebRTC MediaMTX 
 sudo ufw allow 8189/tcp				    # WebUTC MediaMTX
 sudo ufw allow in on tailscale0			    # VPN
-sudo ufw allow 50222/tcp			    # SSH-Port
+sudo ufw allow 50222/tcp			    # SSH port
 sudo ufw allow from 192.168.0.0/24 to any app Samba # samba-sharing
-# System-Zugriffe NUR aus dem lokalen Netzwerk (192.168.0.X) erlauben:
-sudo ufw allow from 192.168.0.0/24 to any port 50222 # Neuer SSH-Port
-sudo ufw allow from 192.168.0.0/24 to any port 5000  #  Mariner WebBrowser
-sudo ufw allow from 192.168.0.0/24 to any port 10000 # Webmin Browser
-# Firewall scharf schalten und neu laden:
+# Allow system access ONLY from local network (192.168.0.X):
+sudo ufw allow from 192.168.0.0/24 to any port 50222 # New SSH port
+sudo ufw allow from 192.168.0.0/24 to any port 5000  #  Mariner web browser
+sudo ufw allow from 192.168.0.0/24 to any port 10000 # Webmin browser
+# Arm firewall and reload:
 sudo ufw enable
 sudo ufw reload
 
-#in dieser Datei bei #Port 22 das # entfernen und auf Port 50222 ändern, bei #PubkeyAuthentication yes auch das # entfernen
+#in this file remove # at #Port 22 and change to Port 50222, at #PubkeyAuthentication yes also remove #
 sudo systemctl restart ssh
 
-#!! Ab nun ist SSH Login über Port 50222 und nur noch mir Auth Key erreichbar.
+#!! From now on SSH login via port 50222 and only with auth key reachable.
 
-# 2. Fail2Ban installieren (loggt und sperrt brute force logins):
+# 2. Install Fail2Ban (logs and blocks brute force logins):
 sudo apt install fail2ban -y
 
-# 3. SSH auf Key statt Passwort umstellen (falls nicht von anfang an mit Pi Imager so eingestellt wurde):
-# Am PC folgendes in der Eingabeaufforderung (cmd) ausführen und 3x Enter drücken:
+# 3. Switch SSH to key instead of password (if not already set from start with Pi Imager):
+# On PC execute the following in command prompt (cmd) and press Enter 3x:
 # ssh-keygen -t ed25519 -b 4096
-# Im Ordner C:/Users/Name/.ssh/ die erstellte "id_ed25519.pub" mit Texteditor öffnen,
-# alles kopieren und auf dem PI in folgende Datei einfügen:
+# In folder C:/Users/Name/.ssh/ open the created "id_ed25519.pub" with text editor,
+# copy everything and paste into following file on PI:
 nano ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
-# SSH-Dienst konfigurieren:
+# Configure SSH service:
 sudo nano /etc/ssh/sshd_config
-# -> Bei "Port" das # wegnehmen und 50222 eintragen.
-# -> Bei "PasswordAuthentication" auf "no" setzen.
-# GANZ UNTEN in der sshd_config anfügen (repariert den Webmin-Login auf dem Pi):
+# -> Remove # at "Port" and enter 50222.
+# -> Set "PasswordAuthentication" to "no".
+# Append at VERY BOTTOM in sshd_config (repairs Webmin login on Pi):
 Match Address 127.0.0.1
     PasswordAuthentication yes
-# SSH-Dienst neu starten:
+# Restart SSH service:
 sudo systemctl restart ssh
-# WICHTIG: Mit Puttygen die zb:"id_ed25519" am PC in eine ".ppk" umwandeln! (hinweis, bei Pi Imager die den normalen Pub Key nehmen sonst geht es nicht)
-# In Putty 0.83 unter SSH -> Auth -> Credentials die ".ppk" laden.
-# Vor dem Trennen der aktuellen Verbindung IMMER im neuen Fenster prüfen,
-# ob der Login passwortlos klappt – sonst droht Aussperrung!
+# IMPORTANT: With Puttygen convert e.g.:"id_ed25519" on PC into a ".ppk"! (note, in Pi Imager take normal pub key otherwise it does not work)
+# In Putty 0.83 under SSH -> Auth -> Credentials load the ".ppk".
+# Before disconnecting the current connection ALWAYS test in new window
+# whether login works passwordless - otherwise lockout threatens!
 
-# 4. VPN für Verbindungen von Außen (die ja sonst geblockt werden):
-# Das Skript tailscale laden
+# 4. VPN for connections from outside (which are otherwise blocked):
+# load the tailscale script
 curl -fsSL https://tailscale.com/install.sh | sh
-#initialisieren:
+#initialize:
 sudo tailscale up
-#den Status kann man spärer abrufen mit:  tailscale status
+#status can be retrieved later with:  tailscale status
 
-Was passiert nach sudo tailscale up? Der Pi generiert in der Konsole eine eindeutige Internetadresse (einen Login-Link).
-Kopieren Sie diesen Link und öffnen Sie ihn im Browser auf Ihrem PC.Melden Sie sich dort an oder einloggen. Der Pi wird sofort in Ihr privates Netzwerk aufgenommen und erhält eine eigene,
-dauerhafte IP-Adresse (beginnend mit 100.X.X.X).
+What happens after sudo tailscale up? The Pi generates a unique internet address in the console (a login link).
+Copy this link and open it in browser on your PC.Log in there or sign in. The Pi is immediately added to your private network and gets its own,
+permanent IP address (starting with 100.X.X.X).
 
-Wenn das Verknpüfen am PI scheinbar nicht geht und ein Ping und die Zeile mit der Adresse im Pi-Command stecken bleibt folgende Maßnahme machen:
-Schritt 1: Den richtigen Auth-Key am PC erstellen. Öffnen Sie an Ihrem PC oder Smartphone die Tailscale-Webseite und loggen Sie sich mit dem Konto ein, das auch auf Ihrem Handy aktiv ist. 
+If linking on PI seemingly does not work and a ping and the line with the address in Pi command gets stuck do the following measure:
+Step 1: Create the correct auth key on PC. Open the Tailscale website on your PC or smartphone and log in with the account that is also active on your phone. 
 
-Navigieren Sie im Menü zu: Settings -> unten bei Personal Keys:
-Generate auth key... (Authentifizierungs-Schlüssel erstellen).Lassen Sie die Einstellungen einfach auf Standard
+Navigate in menu to: Settings -> at bottom at Personal Keys:
+Generate auth key... (create authentication key).Just leave settings on standard
 
-Den Pi direkt per Schlüssel einbuchen, dazu mit Strg-C mal den stehenden Prozess abbrechen. Auf dem Pi und den tailscale Befehl nochmal zusammen mit Ihrem kopierten Schlüssel eingeben und Schlüssel nach dem authkey= im Befehl einbetten:
+Enroll the Pi directly by key, for that break the stuck process once with Ctrl-C. On the Pi enter the tailscale command again together with your copied key and embed key after authkey= in command:
 
-sudo tailscale up --authkey=tskey-auth-DEIN_KOPIERTER_SCHLÜSSEL_HIER
+sudo tailscale up --authkey=tskey-auth-YOUR_COPIED_KEY_HERE
 
-#Da wir jetzt unsere Tailscale Pi-IP kennen müssen wir sie statt "webrtcAdditionalHosts: [100.X.X.X]" noch eintragen:
+#Since we now know our Tailscale Pi-IP we must still enter it instead of "webrtcAdditionalHosts: [100.X.X.X]":
 sudo nano /etc/mediamtx/mediamtx.yml
-#Stelle suchen mit STRG-F und die echte IP des Pi's über Tailscale eintragen. (
+#Find location with CTRL-F and set the real IP of the Pi via Tailscale. (
 
-#Fertig, wirklich wahr!!! - nun hat man noch 1,5GB der insg. 8GB-SD frei, wobei 1.25 immer mind. frei bleiben müssen wegen Auslagerung einer eingelesenen max.1GB Slice-Datei. Vielleicht nochmal mit df -h den freien Speicherplatz checken.
-#Erinnerung: PUTTY ZUGRIFF AB JETZT NUR NOCH UNTER PORT:50222 und mit Auth-Key, oder Webmin
+#Done, really true!!! - now you still have 1.5GB free of total 8GB SD, where 1.25 must always remain free due to swap-out of a read max.1GB slice file. Maybe check free disk space again with df -h.
+#Reminder: PUTTY ACCESS FROM NOW ON ONLY UNDER PORT:50222 and with auth key, or Webmin
 
-#Wer will kann noch den Bluetooth Dienst und HDMI phyisch deaktivieren um Strom zu sparen: (HDMI nicht empfohlen wegen potentiellem Lockout) 
+#If desired one can additionally disable Bluetooth service and physically disable HDMI to save power: (HDMI not recommended due to potential lockout) 
 sudo systemctl disable bluetooth.service
 sudo systemctl mask bluetooth.service
 
-sudo nano /boot/firmware/cmdline.txt    #(nicht empfohlen) folgendes hinten anhängen bei Bedarf um HDMI zu deaktivieren:
+sudo nano /boot/firmware/cmdline.txt    #(not recommended) append following at end if needed to disable HDMI:
  video=HDMI-A-1:d
+
+###
+
+#implement an additional I2C temperature sensor BMP280 GPIO3+GPIO4:
+ip3 install adafruit-circuitpython-bmp280 --break-system-packages
+
+##Make a script, this is only to test the sensor by hand:
+sudo nano test_bmp280.py
+#copy all into it and save:
+
+import board
+import busio
+import adafruit_bmp280
+import time
+
+i2c = busio.I2C(board.SCL, board.SDA)
+bmp = adafruit_bmp280.Adafruit_BMP280_I2C(i2c, address=0x76)
+
+while True:
+    print(f"Temp: {bmp.temperature:.2f} C, Pressure(not used here): {bmp.pressure:.2f} hPa")
+    time.sleep(2)
+
+#save end exit
+
+#test with:
+python test_bmp280.py
+
+####
+
+#test LED output for visual capture-done feedback e.g. on GPIO4:
+python3 -c "import RPi.GPIO as GPIO; import time; GPIO.setmode(GPIO.BCM); GPIO.setwarnings(False); GPIO.setup(4, GPIO.OUT); GPIO.output(4, GPIO.HIGH); print('GPIO 4 is ON (3.3V)'); time.sleep(5); GPIO.output(4, GPIO.LOW); print('GPIO 4 is OFF (0V)'); GPIO.cleanup()"
+
+
 
 sudo reboot
 
 *******************************************************************************************
-                #ENDE DER ANLEITUNG - wenn erfolgreich.. nicht schlecht!
+                #END OF GUIDE - if successful.. not bad!
 *******************************************************************************************
 
 -------------------------------------------------------------------------------------------
 
 *******************************************************************************************
-## Bei unbekannten Fehlern oder Problemen kann das hier helfen:
+## For unknown errors or problems this can help:
 *******************************************************************************************
-# RAM-Cache manuell leeren (gibt blockierten Speicher frei):
+# Clear RAM cache manually (frees blocked memory):
 sudo sync && sudo sysctl -w vm.drop_caches=3
 
-# ODER den USB-Container komplett zurücksetzen & frisch neu erstellen:
+# OR completely reset USB container & recreate fresh:
 sudo umount -fl /mnt/usb_share
 sudo modprobe -r g_mass_storage
 sudo systemctl stop smbd nmbd
 sudo rm -f /piusb.bin
 
-# Container neu erstellen (1024 MB):
-sudo dd if=/dev/zero of=/piusb.bin bs=1M count=1024  # Für mehr Platz: 2048, 4096 oder 6144 nehmen
+# Recreate container (1024 MB):
+sudo dd if=/dev/zero of=/piusb.bin bs=1M count=1024  # For more space: take 2048, 4096 or 6144
 sudo mkfs.vfat -F 32 -n "MARINER" /piusb.bin
 sudo mkdir -p /mnt/usb_share
 sudo mount -o loop,rw,uid=1000,gid=1000,dmask=000,fmask=000 /piusb.bin /mnt/usb_share
 
-# Danach das USB-Gadget für den PC/Drucker mit Schreibrechten neu starten:
-#Rechte fixen
+# Then restart USB gadget for PC/printer with write permissions:
+#Fix permissions
 sudo chown -R pi:www-data /mnt/usb_share
 sudo chmod -R 666 /mnt/usb_share
 sudo chmod 777 /piusb.bin
@@ -465,32 +498,32 @@ sudo chmod 666 /piusb.bin
 sudo chown pi:www-data /piusb.bin
 sudo modprobe g_mass_storage file=/piusb.bin stall=0 removable=1 idVendor=0x0525 idProduct=0xa4a5 iSerialNumber=123456 ro=0
 
-# Müll-Ordner ("System Volume Information" von Windows) im Share löschen:
+# Delete trash folder ("System Volume Information" from Windows) in share:
 sudo rm -rd /mnt/usb_share/'System Volume Information'
 
-# "Checkdisk" machen:
+# Run "checkdisk":
 sudo dosfsck -a /piusb.bin
 
 # ====================================================================
 
-# DIAGNOSE-BEFEHLE FÜR DIE KONSOLE:
+# DIAGNOSIS COMMANDS FOR CONSOLE:
 #
-# Taskmanager in der Konsole öffnen (Beenden mit Taste 'q'):
+# Open task manager in console (exit with key 'q'):
 htop
 
-# Aktuelle CPU-Temperatur anzeigen (< 60°C wäre perfekt):
+# Show current CPU temperature (< 60°C would be perfect):
 vcgencmd measure_temp
 
-# Laufende Live-CPU-Temperatur-Überwachung (alle 2 Sekunden aktualisiert):
+# Running live CPU temperature monitoring (updates every 2 seconds):
 watch -n 2 vcgencmd measure_temp
 
-# WLAN-Signalstärke und Netzwerke in Reichweite scannen (Modern für Debian 13):
+# Scan WLAN signal strength and networks in range (modern for Debian 13):
 sudo nmcli dev wifi list
 
-# Den Video-Stream im Netzwerk direkt im Browser aufrufen unter:
+# Open the video stream directly in the network in browser at:
 # http://192.168.0.XXX:8889/cam/
 
-#Diverse Diense-Stati abfragen:
+#Query various service statuses:
 sudo systemctl status mariner3d.service
 sudo systemctl status mediamtx.service
 tailscale status
@@ -501,4 +534,4 @@ sudo systemctl list-units --type=service --state=running
 sudo systemctl --failed
 
 
--ENDE-END-FIN-
+-END-END-
