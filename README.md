@@ -48,7 +48,7 @@ Some technical details ➡️ **[Timelapse + MediaMTX details](docs/TIMELAPSE_ME
 ![grafic8](docs/Screenshot8.jpg)
 #
 
-small opto-coupler board with 3.3V GPOI und additional output:
+small opto-coupler board with 3.3V GPIO-out (and additional output for additional light if desired)
 ![grafic9](docs/opto-board_24v-3_3V.jpg)
 #
 
