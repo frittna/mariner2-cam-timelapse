@@ -12,6 +12,7 @@ import { useState, useEffect, useRef } from "react";
 const AUTO_TIMELAPSE_KEY = "mariner_auto_timelapse_on_start";
 const AUTO_TIMELAPSE_EVENT = "mariner:auto-timelapse-changed";
 const PRINTER_PENDING_ACTION_KEY = "mariner_printer_pending_action";
+const RESUME_GUARD_MS = 20000;
 
 type PendingPrinterAction =
   | "start_print"
@@ -75,6 +76,7 @@ export default function Index() {
   const autoStartArmedRef = useRef(true);
 
   const [pendingPrinterAction, setPendingPrinterAction] = useState<PendingPrinterAction>(null);
+  const [resumeLockedUntilMs, setResumeLockedUntilMs] = useState(0);
 
   const persistPendingAction = (action: PendingPrinterAction) => {
     setPendingPrinterAction(action);
@@ -95,6 +97,7 @@ export default function Index() {
     queryClient.invalidateQueries({ queryKey: ["printStatus"] });
 
   const handlePause = async () => {
+    setResumeLockedUntilMs(Date.now() + RESUME_GUARD_MS);
     persistPendingAction("pause_print");
     try {
       await api.printerCommand("pause_print");
@@ -104,6 +107,7 @@ export default function Index() {
   };
 
   const handleResume = async () => {
+    if (Date.now() < resumeLockedUntilMs) return;
     persistPendingAction(null);
     try {
       await api.printerCommand("resume_print");
@@ -204,6 +208,11 @@ export default function Index() {
       persistPendingAction(null);
     }
   }, [pendingPrinterAction, status]);
+  useEffect(() => {
+    if (status !== "paused") {
+      setResumeLockedUntilMs(0);
+    }
+  }, [status]);
   const printerName =
     document
       .querySelector('meta[name="printer-display-name"]')
@@ -246,6 +255,8 @@ export default function Index() {
       }
     : null;
 
+  const resumeWaitSeconds = Math.max(0, Math.ceil((resumeLockedUntilMs - Date.now()) / 1000));
+  const resumeLocked = status === "paused" && resumeWaitSeconds > 0;
   return (
     <div className="container pt-2 pb-2">
       <div className="mb-2 flex items-center justify-between">
@@ -376,6 +387,8 @@ export default function Index() {
                 onResume={handleResume}
                 onCancel={handleCancel}
                 pendingAction={pendingPrinterAction}
+                resumeLocked={resumeLocked}
+                resumeWaitSeconds={resumeWaitSeconds}
               />
             </div>
           )}
