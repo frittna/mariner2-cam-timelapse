@@ -1,4 +1,4 @@
-# Timelapse setup
+﻿# Timelapse setup
 
 This document describes the current Raspberry Pi timelapse setup used by Mariner.
 

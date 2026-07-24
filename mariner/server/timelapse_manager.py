@@ -1,4 +1,4 @@
-import json
+﻿import json
 import shutil
 import subprocess
 from datetime import datetime
@@ -209,6 +209,7 @@ class TimelapseManager:
         session_id: str,
         preset: str = "normal_30fps",
         output_name: Optional[str] = None,
+        skip_frames: int = 0,
     ) -> Optional[dict]:
         session_dir = SESSIONS_DIR / session_id
         if not session_dir.exists():
@@ -218,6 +219,9 @@ class TimelapseManager:
         frame_count = len(list(session_dir.glob("frame_*.jpg")))
         if frame_count == 0:
             return None
+
+        skip_frames = max(0, min(10, int(skip_frames)))
+        frame_step = skip_frames + 1
 
         if preset not in cls.RENDER_PRESETS:
             preset = "normal_30fps"
@@ -250,8 +254,17 @@ class TimelapseManager:
             str(preset_data["crf"]),
             "-pix_fmt",
             "yuv420p",
-            str(output_path),
         ]
+        if skip_frames > 0:
+            cmd.extend(
+                [
+                    "-vf",
+                    "select=not(mod(n\,{})),setpts=PTS-STARTPTS".format(frame_step),
+                    "-vsync",
+                    "vfr",
+                ]
+            )
+        cmd.append(str(output_path))
 
         try:
             subprocess.run(cmd, capture_output=True, check=True, timeout=600)
@@ -263,7 +276,7 @@ class TimelapseManager:
         return {
             "filename": output_path.name,
             "size_mb": round(output_path.stat().st_size / (1024 * 1024), 2),
-            "frame_count": frame_count,
+            "frame_count": (frame_count + frame_step - 1) // frame_step,
             "fps": int(preset_data["fps"]),
             "preset": preset,
             "capture_profile": session_metadata.get("stream_profile"),

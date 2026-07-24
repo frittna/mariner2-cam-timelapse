@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+﻿import { useQuery } from "@tanstack/react-query";
 import { FolderOpen, Printer, Settings as SettingsIcon, WifiOff } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 

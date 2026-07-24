@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+﻿import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PrintProgress } from "@/components/PrintProgress";
 import { PrintControls } from "@/components/PrintControls";
 import { StatusIndicator } from "@/components/StatusIndicator";

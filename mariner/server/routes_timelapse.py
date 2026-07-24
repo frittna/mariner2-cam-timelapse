@@ -279,6 +279,7 @@ def render():
     preset = payload.get("preset", "normal_30fps")
     output_name = payload.get("output_name")
     keep_session = bool(payload.get("keep_session", False))
+    skip_frames = int(payload.get("skip_frames", 0))
     if not session_id:
         return jsonify({"error": "session_id required"}), 400
 
@@ -287,7 +288,7 @@ def render():
         return jsonify({"error": "Insufficient disk space", "disk_info": disk_info}), 507
 
     video = TimelapseManager.render_video(
-        session_id, preset=preset, output_name=output_name
+        session_id, preset=preset, output_name=output_name, skip_frames=skip_frames
     )
     if not video:
         return jsonify({"error": "Render failed"}), 500

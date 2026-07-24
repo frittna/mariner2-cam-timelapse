@@ -12,7 +12,7 @@ Workaround: mit UVtools die .ctb sclice Datei neu abspeichern, dafür manchmal v
 
 ###### VORBEREITUNG: (Raspberry Pi Imager Tool für Windows)
 Auf dem Zero 2 W geht Trixie 64-bit OS-Lite.;
-Mit starkem externen Netzteil versorgen da am Drucker definitiv zu schwach versorgt wird. Vermeide unbedingt das "double-power" problem!!
+Mit starkem externen 1.5-2A Netzteil versorgen da am Drucker definitiv zu schwach versorgt wird. Vermeide unbedingt das "double-power" problem!!
 
 ##START##
 Bei der Erstellung der SD-Karte (8GB oder mehr) mit Pi Imager und Windows schon SSH-Zugriff einstellen und Wlan-Settings setzen.
@@ -343,7 +343,7 @@ Mariner2 Webseiten im Browser laden:             http://192.168.0.XXX:5000/
 ------------------------------------
 
 # ==============================================================================
-# NOCH EIN PAAR SICHERHEITS MASSNAHMEN MIT 4 MASSNAHMEN
+# NOCH EIN PAAR SICHERHEITS MASSNAHMEN#
 # ==============================================================================
 # 1. Firewall installieren und absichern:
 sudo apt install ufw -y
@@ -420,7 +420,7 @@ sudo tailscale up --authkey=tskey-auth-DEIN_KOPIERTER_SCHLÜSSEL_HIER
 sudo nano /etc/mediamtx/mediamtx.yml
 #Stelle suchen mit STRG-F und die echte IP des Pi's über Tailscale eintragen. (
 
-#Fertig, wirklich wahr!!! - nun hat man noch 1,5GB der insg. 8GB-SD frei, wobei 1.25 immer mind. frei bleiben müssen wegen Auslagerung einer eingelesenen max.1GB (einstellbar) Slice-Datei. Vielleicht nochmal mit df -h den freien Speicherplatz checken.
+#Fertig, wirklich wahr!!! - nun hat man noch 1,5GB der insg. 8GB-SD frei, wobei 1.25 immer mind. frei bleiben müssen wegen Auslagerung einer eingelesenen max.1GB Slice-Datei. Vielleicht nochmal mit df -h den freien Speicherplatz checken.
 #Erinnerung: PUTTY ZUGRIFF AB JETZT NUR NOCH UNTER PORT:50222 und mit Auth-Key, oder Webmin
 
 #Wer will kann noch den Bluetooth Dienst und HDMI phyisch deaktivieren um Strom zu sparen: (HDMI nicht empfohlen wegen potentiellem Lockout) 
@@ -501,4 +501,4 @@ sudo systemctl list-units --type=service --state=running
 sudo systemctl --failed
 
 
--END-ENDE-FIN-
+-ENDE-END-FIN-

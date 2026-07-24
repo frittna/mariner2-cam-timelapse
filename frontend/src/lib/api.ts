@@ -268,7 +268,7 @@ export const api = {
   async timelapseRender(
     sessionId: string,
     preset: "smooth_60fps" | "normal_30fps" | "cinematic_25fps",
-    options?: { outputName?: string; keepSession?: boolean },
+    options?: { outputName?: string; keepSession?: boolean; skipFrames?: number },
   ): Promise<TimelapseRenderResponse> {
     return apiFetch<TimelapseRenderResponse>("/api/timelapse/render", {
       method: "POST",
@@ -278,6 +278,7 @@ export const api = {
         preset,
         output_name: options?.outputName,
         keep_session: Boolean(options?.keepSession),
+        skip_frames: options?.skipFrames ?? 0,
       }),
     });
   },

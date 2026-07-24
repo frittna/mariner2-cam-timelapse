@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Film, Loader2, Trash2 } from "lucide-react";
 
@@ -87,6 +87,8 @@ export default function Timelapse() {
   const [activeThemeId, setActiveThemeId] = useState(getStoredThemeId);
   const [keepSessionById, setKeepSessionById] = useState<Record<string, boolean>>({});
   const [activeRenderKey, setActiveRenderKey] = useState<string | null>(null);
+  const [renderPickerSession, setRenderPickerSession] = useState<string | null>(null);
+  const [skipFramesBySession, setSkipFramesBySession] = useState<Record<string, number>>({});
   const [confirmDeleteVideo, setConfirmDeleteVideo] = useState<string | null>(null);
   const [confirmDeleteSession, setConfirmDeleteSession] = useState<string | null>(null);
   const [captureOffsetMs, setCaptureOffsetMs] = useState("120");
@@ -227,25 +229,27 @@ export default function Timelapse() {
   });
 
   const renderSessionMutation = useMutation({
-    mutationFn: ({ sessionId, preset, keepSession }: { sessionId: string; preset: RenderPreset; keepSession: boolean }) =>
-      api.timelapseRender(sessionId, preset, { keepSession }),
-    onSuccess: (_, vars) => {
-      toast.success(
-        vars.keepSession
-          ? "Rendered. Session kept."
-          : "Rendered. Session converted to video.",
-      );
+    mutationFn: ({ sessionId, preset, skipFrames }: { sessionId: string; preset: RenderPreset; skipFrames: number }) =>
+      api.timelapseRender(sessionId, preset, { keepSession: true, skipFrames }),
+    onSuccess: async (_, vars) => {
+      const keep = Boolean(keepSessionById[vars.sessionId]);
+      if (!keep) {
+        try { await api.timelapseDeleteSession(vars.sessionId); } catch { /* ignore */ }
+        toast.success("Rendered. Session converted to video.");
+      } else {
+        toast.success("Rendered. Session kept.");
+      }
       queryClient.invalidateQueries({ queryKey: ["timelapse-videos"] });
       queryClient.invalidateQueries({ queryKey: ["timelapse-disk"] });
       queryClient.invalidateQueries({ queryKey: ["timelapse-sessions"] });
       setActiveRenderKey(null);
+      setRenderPickerSession(null);
     },
     onError: (err: Error) => {
       setActiveRenderKey(null);
       toast.error(err.message);
     },
   });
-
 
   const deleteSessionMutation = useMutation({
     mutationFn: (sessionId: string) => api.timelapseDeleteSession(sessionId),
@@ -286,9 +290,10 @@ export default function Timelapse() {
   }
 
   function renderSession(sessionId: string, preset: RenderPreset) {
-    const keep = Boolean(keepSessionById[sessionId]);
+    const skipFrames = skipFramesBySession[sessionId] ?? 0;
     setActiveRenderKey(`${sessionId}:${preset}`);
-    renderSessionMutation.mutate({ sessionId, preset, keepSession: keep });
+    setRenderPickerSession(null);
+    renderSessionMutation.mutate({ sessionId, preset, skipFrames });
   }
 
   const itemsLoading = sessionsLoading || videosLoading;
@@ -621,34 +626,63 @@ export default function Timelapse() {
                         {confirmDeleteSession === session.session_id ? "Delete session?" : "Delete session"}
                       </button>
 
-                      {RENDER_PRESETS.map((preset) => {
-                        const key = `${session.session_id}:${preset.value}`;
-                        const isActive = activeRenderKey === key && renderSessionMutation.isPending;
-                        return (
-                          <button
-                            key={preset.value}
-                            type="button"
-                            onClick={() => renderSession(session.session_id, preset.value)}
-                            disabled={renderSessionMutation.isPending}
-                            className={cn(
-                              "rounded-md border px-3 py-1.5 text-xs transition-colors",
-                              "border-border bg-muted text-foreground",
-                              "hover:border-primary hover:bg-primary/10",
-                              isActive && "bg-muted-foreground/20 text-foreground",
-                              renderSessionMutation.isPending && !isActive && "opacity-70",
-                            )}
-                          >
-                            {isActive ? (
-                              <>
-                                <Loader2 className="mr-1 inline-block h-3.5 w-3.5 animate-spin" />
-                                Rendering...
-                              </>
-                            ) : (
-                              <>Render {preset.label}</>
-                            )}
-                          </button>
-                        );
-                      })}
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs text-muted-foreground whitespace-nowrap">Skip frames:</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          value={skipFramesBySession[session.session_id] ?? 0}
+                          onChange={(e) => setSkipFramesBySession((prev) => ({ ...prev, [session.session_id]: Math.max(0, Math.min(10, Number(e.target.value))) }))}
+                          className="w-14 rounded border border-border bg-background px-1.5 py-1 text-xs text-center"
+                          disabled={renderSessionMutation.isPending}
+                        />
+                      </div>
+                      {renderPickerSession === session.session_id ? (
+                        <div className="flex items-center gap-1">
+                          {RENDER_PRESETS.map((preset) => {
+                            const key = `${session.session_id}:${preset.value}`;
+                            const isActive = activeRenderKey === key && renderSessionMutation.isPending;
+                            return (
+                              <button
+                                key={preset.value}
+                                type="button"
+                                onClick={() => renderSession(session.session_id, preset.value)}
+                                disabled={renderSessionMutation.isPending}
+                                className={cn(
+                                  "rounded-md border px-3 py-1.5 text-xs transition-colors",
+                                  "border-primary/60 bg-primary/10 text-primary",
+                                  "hover:bg-primary/20",
+                                  renderSessionMutation.isPending && !isActive && "opacity-70",
+                                )}
+                              >
+                                {isActive ? (
+                                  <>
+                                    <Loader2 className="mr-1 inline-block h-3.5 w-3.5 animate-spin" />
+                                    Rendering...
+                                  </>
+                                ) : (
+                                  <>{preset.label}</>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setRenderPickerSession(session.session_id)}
+                          disabled={renderSessionMutation.isPending || session.active}
+                          className={cn(
+                            "rounded-md border px-3 py-1.5 text-xs transition-colors",
+                            "border-border bg-muted text-foreground",
+                            "hover:border-primary hover:bg-primary/10",
+                            (renderSessionMutation.isPending || session.active) && "opacity-50 cursor-not-allowed",
+                          )}
+                        >
+                          Render ▾
+                        </button>
+                      )}
                     </div>
                     {sessionRendering ? (
                       <div className="text-xs text-primary">Rendering in progress...</div>
