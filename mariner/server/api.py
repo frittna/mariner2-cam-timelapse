@@ -41,23 +41,27 @@ api = Blueprint("api", __name__, url_prefix="/api")
 # meaningless for layer estimation, so we hold the last known value.
 _last_z_layer: Optional[int] = None
 _last_z_job_key: Optional[str] = None
+_resume_layer_hold_until: float = 0.0
 _last_active_status: Optional[PrintStatus] = None
 _last_active_file: str = ""
 _last_active_seen_at: float = 0.0
+_RESUME_LAYER_HOLD_SECS = 8.0
 
 
 def reset_progress_tracking() -> None:
     """Clear progress tracking state (e.g. between tests)."""
-    global _last_z_layer, _last_z_job_key
+    global _last_z_layer, _last_z_job_key, _resume_layer_hold_until
     _last_z_layer = None
     _last_z_job_key = None
+    _resume_layer_hold_until = 0.0
 
 
 def _prepare_progress_tracking(job_key: str) -> None:
-    global _last_z_layer, _last_z_job_key
+    global _last_z_layer, _last_z_job_key, _resume_layer_hold_until
     if _last_z_job_key != job_key:
         _last_z_layer = None
         _last_z_job_key = job_key
+        _resume_layer_hold_until = 0.0
 
 
 def _remember_active_status(print_status: PrintStatus, selected_file: str) -> None:
@@ -151,6 +155,7 @@ def handle_mariner_exception(exception: MarinerException) -> Tuple[Response, int
 
 @api.route("/print_status", methods=["GET"])
 def print_status() -> Union[str, Response]:
+    global _resume_layer_hold_until
     with ChiTuPrinter() as printer:
 
         # the printer sends periodic "ok" responses over serial. this means that
@@ -159,6 +164,9 @@ def print_status() -> Union[str, Response]:
         # until we have a successful response. see issue #180
         transient_errors = (UnexpectedPrinterResponse, serial.SerialException)
         selected_file = ""
+        previous_active_state = (
+            _last_active_status.state if _last_active_status is not None else None
+        )
         try:
             print_status = retry(
                 printer.get_print_status,
@@ -208,6 +216,14 @@ def print_status() -> Union[str, Response]:
                 print_status, fallback_file = fallback
                 if not selected_file:
                     selected_file = fallback_file
+
+        if (
+            previous_active_state == PrinterState.PAUSED
+            and print_status.state == PrinterState.PRINTING
+        ):
+            _resume_layer_hold_until = time.monotonic() + _RESUME_LAYER_HOLD_SECS
+        elif print_status.state != PrinterState.PRINTING:
+            _resume_layer_hold_until = 0.0
 
         _remember_active_status(print_status, selected_file)
 
@@ -263,12 +279,27 @@ def print_status() -> Union[str, Response]:
                 if z_layer is not None:
                     current_layer = z_layer
                     layer_source = "z"
-                elif print_status.state == PrinterState.PAUSED and _last_z_layer is not None:
+                    if print_status.state == PrinterState.PRINTING:
+                        _resume_layer_hold_until = 0.0
+                elif (
+                    (
+                        print_status.state == PrinterState.PAUSED
+                        or (
+                            print_status.state == PrinterState.PRINTING
+                            and time.monotonic() < _resume_layer_hold_until
+                        )
+                    )
+                    and _last_z_layer is not None
+                ):
                     # While paused, the printer can report high lift Z and buffered byte
                     # offsets that run ahead of the actually exposed layer. Keep the last
                     # stable Z-derived layer to avoid progress bouncing.
                     current_layer = _last_z_layer
-                    layer_source = "paused_hold"
+                    layer_source = (
+                        "paused_hold"
+                        if print_status.state == PrinterState.PAUSED
+                        else "resume_hold"
+                    )
                 else:
                     current_layer = _layer_from_byte_offset(
                         current_byte, sliced_model_file.end_byte_offset_by_layer
