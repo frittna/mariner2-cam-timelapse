@@ -12,6 +12,7 @@ It keeps the base Mariner workflow, but adds a practical print-timelapse pipelin
 - MediaMTX live camera profile switching (HIGH/MID/LOW)
 - Better serial/status resilience during print polling
 - Better UI feedback for file actions, cancel, and render actions
+- Temperautre sensor display added
 - Offline indicator when the Pi host is not reachable
 
 ## Timelapse method used
