@@ -11,9 +11,9 @@ It keeps the base Mariner workflow, but adds a practical print-timelapse pipelin
 - UV-bottom trigger mode only (`uv_light`) for more stable captures
 - MediaMTX live camera profile switching (HIGH/MID/LOW)
 - Better serial/status resilience during print polling
-- Better UI feedback for file actions, cancel, and render actions
-- Temperautre sensor display added
-- Offline indicator when the Pi host is not reachable
+- Better UI feedback for file actions and upload, cancel a print and rendering a video
+- Temperautre sensor display added (°C/°F with BMP280 I2C)
+- Offline indicator when page open but host not reachable
 
 ## Timelapse method used
 
