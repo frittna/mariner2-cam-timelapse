@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import threading
 import time
 from datetime import datetime
@@ -19,7 +19,7 @@ class UVLightDetector:
         debounce_ms: int = 300,
         on_light_detected: Optional[Callable[[], None]] = None,
         poll_interval_ms: int = 5,
-        led_pin: int = 4,
+        led_pin: int = 26,
     ) -> None:
         self.sensor_pin = sensor_pin
         self.debounce_seconds = debounce_ms / 1000.0
