@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Film, Loader2, Trash2 } from "lucide-react";
 
@@ -578,32 +578,7 @@ export default function Timelapse() {
 
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleKeepSession(session.session_id)}
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
-                          keep
-                            ? "border-primary/40 bg-primary/10 text-primary"
-                            : "border-border bg-background text-muted-foreground",
-                        )}
-                        aria-pressed={keep}
-                      >
-                        <span>Keep Session</span>
-                        <span
-                          className={cn(
-                            "relative h-5 w-9 rounded-full transition-colors",
-                            keep ? "bg-primary" : "bg-muted",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
-                              keep ? "translate-x-4" : "translate-x-0",
-                            )}
-                          />
-                        </span>
-                      </button>
+                      
                       <button
                         type="button"
                         onClick={() => {
@@ -638,6 +613,34 @@ export default function Timelapse() {
                           disabled={renderSessionMutation.isPending}
                         />
                       </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => toggleKeepSession(session.session_id)}
+                        className={cn(
+                          "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                          keep
+                            ? "border-primary/40 bg-primary/10 text-primary"
+                            : "border-border bg-background text-muted-foreground",
+                        )}
+                        aria-pressed={keep}
+                      >
+                        <span>Keep Session</span>
+                        <span
+                          className={cn(
+                            "relative h-5 w-9 rounded-full transition-colors",
+                            keep ? "bg-primary" : "bg-muted",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+                              keep ? "translate-x-4" : "translate-x-0",
+                            )}
+                          />
+                        </span>
+                      </button>
+
                       {renderPickerSession === session.session_id ? (
                         <div className="flex items-center gap-1">
                           {RENDER_PRESETS.map((preset) => {
