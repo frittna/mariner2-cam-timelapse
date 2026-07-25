@@ -7,7 +7,7 @@ It keeps the base Mariner workflow, but adds a practical print-timelapse pipelin
 ## What is different in this version
 
 - Timelapse sessions with video rendering (25/30/60 fps presets)
-- Optional skip-frames rendering for long prints
+- Optional skip-frames rendering for long prints*    *to-fix
 - UV-bottom trigger mode only (`uv_light`) for more stable captures
 - MediaMTX live camera profile switching (HIGH/MID/LOW)
 - Better serial/status resilience during print polling
