@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { applyTheme, getStoredThemeId } from "@/lib/themes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
@@ -36,6 +37,7 @@ function FileIcon({ canBePrinted }: { canBePrinted: boolean }) {
 }
 
 export default function Files() {
+  const [activeThemeId] = useState(getStoredThemeId);
   const [currentPath, setCurrentPath] = useState(".");
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -57,6 +59,10 @@ export default function Files() {
     }
     return 'MIN';
   });
+
+  useEffect(() => {
+    applyTheme(activeThemeId);
+  }, [activeThemeId]);
 
   // Ignore repeated clicks for the active size.
   const handleSizeChange = async (size: CamSize) => {
@@ -201,24 +207,31 @@ export default function Files() {
             <span className="hidden sm:inline">New folder</span>
           </Button>
           <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
+          variant="outline"
+          size="sm"
+          className={`gap-1.5 transition-colors ${
+          isUploading 
+          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground" 
+          : ""
+          }`}
+          onClick={() => {
+          if (isUploading) return;
+          fileInputRef.current?.click();
+          }}
           >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span className="hidden sm:inline">Uploading...</span>
-              </>
-            ) : (
-              <>
-                <Upload className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Upload</span>
-              </>
-            )}
-          </Button>
+          {isUploading ? (
+          <>
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span className="hidden sm:inline">Uploading...</span>
+        </>
+        ) : (
+        <>
+        <Upload className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Upload</span>
+    </>
+  )}
+</Button>
+
         </div>
       </div>
       {/* Live camera stream controls. */}
@@ -457,10 +470,3 @@ export default function Files() {
     </div>
   );
 }
-
-
-
-
-
-
-
