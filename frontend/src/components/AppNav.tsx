@@ -1,9 +1,7 @@
-﻿import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { FolderOpen, Printer, Settings as SettingsIcon, WifiOff } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-
 import { PowerMenu } from "@/components/PowerMenu";
-import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { useTemperatureUnit } from "@/hooks/use-temperature-unit";
 import { api } from "@/lib/api";
 import {
