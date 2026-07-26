@@ -1,4 +1,4 @@
-﻿export type TemperatureUnit = "C" | "F";
+export type TemperatureUnit = "C" | "F";
 
 const STORAGE_KEY = "mariner_temperature_unit";
 const CHANGE_EVENT = "mariner-temperature-unit-change";
@@ -45,9 +45,27 @@ export function getTemperatureColorClass(
   tempC: number | null | undefined,
 ): string {
   if (tempC == null) return "text-muted-foreground";
-  if (tempC < 20) return "text-blue-400";
-  if (tempC < 35) return "text-green-400";
-  if (tempC < 40) return "text-red-500";
+  let coolMax = 20;
+  let normalMax = 35;
+  let hotMax = 40;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("mariner_temp_thresholds_c");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === "object") {
+          if (Number.isFinite(parsed.coolMax)) coolMax = parsed.coolMax;
+          if (Number.isFinite(parsed.normalMax)) normalMax = parsed.normalMax;
+          if (Number.isFinite(parsed.hotMax)) hotMax = parsed.hotMax;
+        }
+      }
+    } catch (e) {
+      console.error("error loading user defined temperature bands:", e);
+    }
+  }
+  if (tempC < coolMax) return "text-blue-400";
+  if (tempC < normalMax) return "text-green-400";
+  if (tempC < hotMax) return "text-red-500";
   return "text-pink-400";
 }
 
