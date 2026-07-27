@@ -7,9 +7,9 @@ This document describes the current Raspberry Pi timelapse setup used by Mariner
 - One global MediaMTX stream path: `cam`
 - Live profile switching through the MediaMTX Control API
 - Buffered timelapse frame capture in the backend worker
-- UV-bottom trigger detection only (`uv_light`)
+- UV-bottom trigger detection (`uv_light`)
 - UV detector runs in simple GPIO polling mode (no interrupt backend)
-- Default UV sensor pin: `GPIO24`
+- Default UV trigger-in pin: `GPIO24` with capture-done-state led out on `GPIO26`
 
 ## MediaMTX requirements
 
