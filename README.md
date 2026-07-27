@@ -2,7 +2,7 @@
 🔴 [github.com/frittna/mariner2cam/edit/mariner2cam-timelapse](https://github.com/frittna/mariner2-cam-timelapse) - 14:39-24.July.2026+AI copilot
 
 This is the timelapse-focused variant of my Mariner 2 Cam fork.
-It keeps the base Mariner workflow, but adds a practical print-timelapse pipeline and several stability improvements.
+It keeps the base Mariner workflow, but adds a print-timelapse video function and several small improvements.
 
 ## What is different in this version
 
