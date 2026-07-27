@@ -14,6 +14,8 @@ It keeps the base Mariner workflow, but adds a print-timelapse video function an
 - Better UI feedback for file actions and upload, cancel a print and rendering a video
 - Temperautre sensor display added (°C/°F with BMP280 I2C)
 - Offline indicator when page open but host not reachable
+- slice file limit raised to 1GB files
+  
 
 ## Timelapse method used
 
