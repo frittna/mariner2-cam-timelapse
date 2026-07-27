@@ -32,7 +32,7 @@ Some technical details ➡️ **[Timelapse + MediaMTX details](docs/TIMELAPSE_ME
 
 - Use an external **5V / 1.5A+** PSU for the Pi.
 - High profile streaming and capture can keep CPU load elevated for long time so active cooling is recommended.
-- A complete guide to load it straigt from github will follow i guess but i can't make these things because i dont know how to do it properly. But you can find a long detailed instruciton how to install Mariner 2 Cam on top of amd989's wonderful Mariner2 version with his install script. Then update and create all new files from my mariner2cam-timelapse fork which is newer than April'26, compile the frontend and copy the frontend/dist folder over again.
+- A complete guide to load it straigt from github will follow i guess but i can't make these things because i dont know how to do it properly. But you can find a long detailed instruciton how to install Mariner 2 Cam on top of amd989's wonderful Mariner2 version with his install script. Then update and create all new files from my mariner2cam-timelapse fork which are newer than April'26, compile the frontend and copy the frontend/dist folder over again.
   
 ## Screenshots / demo
 
