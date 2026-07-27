@@ -91,7 +91,7 @@ The active mode is exposed by `/api/timelapse/status`.
 - Input uses `PUD_OFF` (no internal pull-up)
 - Detection is polling-based and latches one trigger per HIGH phase
 - Debounce still applies between trigger events
-- Trigger feedback LED pulses on `GPIO4` only after a frame was captured successfully
+- Trigger feedback LED pulses on `GPIO26` only after a frame was captured successfully
 
 Optional environment override:
 
@@ -123,7 +123,7 @@ Healthy output should show:
     "interrupt_mode": false,
     "interrupt_backend": "polling",
     "pin": 24,
-    "led_pin": 4
+    "led_pin": 26
   }
 }
 ```
@@ -133,6 +133,6 @@ Healthy output should show:
 On the Pi, Mariner may run from the installed virtualenv package path instead of a checkout.
 If behavior differs from the repository files, verify which runtime file is active before debugging further.
 
-Recommended UV-bottom capture settings: offset 800 ms, event window 800 ms, timeout 8000 ms.
+Recommended UV-bottom capture settings: offset 300 ms, event window 800 ms, timeout 5000 ms.
 
 If buffered capture misses a frame deadline, Mariner falls back to a one-shot ffmpeg snapshot.
