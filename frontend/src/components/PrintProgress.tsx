@@ -41,8 +41,8 @@ export function PrintProgress({ job }: PrintProgressProps) {
 
       {/* File name */}
       <div className="rounded-md bg-muted px-3 py-2 text-center">
-        <span className="font-mono text-sm text-muted-foreground" title={job.fileName}>
-          {ellipsizeMiddle(job.fileName, 42)}
+        <span className="font-mono text-sm text-muted-foreground break-words" title={job.fileName}>
+          {ellipsizeMiddle(job.fileName, 128)}
         </span>
       </div>
     </div>
