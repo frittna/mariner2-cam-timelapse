@@ -806,7 +806,7 @@ export default function Timelapse() {
             Apply timing
           </Button>
           <span className="text-xs text-muted-foreground">
-            Current: offset {status?.capture_settings?.capture_offset_ms ?? 120} ms | window {status?.capture_settings?.event_window_ms ?? 120} ms | mode {status?.capture_settings?.grab_mode === "on_request" ? "on demand" : "background"}
+            Current: offset {status?.capture_settings?.capture_offset_ms ?? 120} ms | window {status?.capture_settings?.event_window_ms ?? 120} ms | timeout {status?.capture_settings?.request_timeout_ms ?? 120} ms
           </span>
         </div>
       </div>
