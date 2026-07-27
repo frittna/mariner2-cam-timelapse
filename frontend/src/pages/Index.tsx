@@ -446,10 +446,12 @@ return (
             borderRadius: '6px 6px 0 0',
             border: '2px solid #222',
             borderBottom: 'none',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
           }}>
             <div style={{ fontSize: '13px', color: '#aaa', fontWeight: 'bold' }}>
-              Model-Preview: <span style={{ color: '#00b4d8' }} title={job.fileName}>{ellipsizeMiddle(job.fileName, 56)}</span>
+              Model-Preview: <span style={{ color: '#00b4d8' }} title={job.fileName}>{ellipsizeMiddle(job.fileName, 128)}</span>
             </div>
           </div>
 
