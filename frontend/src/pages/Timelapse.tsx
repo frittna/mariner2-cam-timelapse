@@ -569,7 +569,7 @@ export default function Timelapse() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate font-mono text-sm">
-                          Session: {ellipsizeMiddle(session.session_id, 42)}{session.active ? " (active)" : ""}
+                          Session: {ellipsizeMiddle(session.session_id, 60)}{session.active ? " (active)" : ""}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {session.frame_count} frames
@@ -698,7 +698,7 @@ export default function Timelapse() {
               return (
                 <div key={`video-${video.filename}`} className="flex items-center justify-between p-3">
                   <div className="min-w-0">
-                    <div className="truncate font-mono text-sm" title={video.filename}>{ellipsizeMiddle(video.filename, 42)}</div>
+                    <div className="truncate font-mono text-sm" title={video.filename}>{ellipsizeMiddle(video.filename, 60)}</div>
                     <div className="text-xs text-muted-foreground">{video.size_mb} MB</div>
                   </div>
                   <div className="flex items-center gap-2">
