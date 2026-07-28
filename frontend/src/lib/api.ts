@@ -237,6 +237,10 @@ export const api = {
     await apiFetch("/api/host/reboot", { method: "POST" });
   },
 
+  async hostRestartService(): Promise<void> {
+    await apiFetch("/api/host/restart_service", { method: "POST" });
+  },
+  
   async timelapseListVideos(): Promise<TimelapseVideoEntry[]> {
     return apiFetch<TimelapseVideoEntry[]>("/api/timelapse/videos");
   },
