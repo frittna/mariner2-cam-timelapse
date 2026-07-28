@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export function PowerMenu() {
-  const [confirming, setConfirming] = useState<"shutdown" | "reboot" | "restart_service" | null>(
+  const [confirming, setConfirming] = useState<"shutdown" | "reboot" | "restart_service" | "restart_mediamtx" | null>(
     null,
   );
   const [open, setOpen] = useState(false);
@@ -18,7 +18,7 @@ export function PowerMenu() {
     setConfirming(null);
   }
 
-  async function handleAction(action: "shutdown" | "reboot" | "restart_service") {
+  async function handleAction(action: "shutdown" | "reboot" | "restart_service" | "restart_mediamtx") {
     if (confirming !== action) {
       setConfirming(action);
       return;
@@ -30,6 +30,8 @@ export function PowerMenu() {
         await api.hostReboot();
       } else if (action === "restart_service") {
         await api.hostRestartService();
+      } else if (action === "restart_mediamtx") {
+        await api.hostRestartMediamtx();
       }
     } catch {
       // host is shutting down, connection will drop
@@ -59,20 +61,6 @@ export function PowerMenu() {
           Host Power
         </p>
         <div className="space-y-0.5">
-          {/* Mariner Restart Button */}
-          <button
-            onClick={() => handleAction("restart_service")}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
-              confirming === "restart_service"
-                ? "bg-destructive/10 font-medium text-destructive"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-            )}
-          >
-            <RefreshCw className="h-4 w-4" />
-            {confirming === "restart_service" ? "Confirm Restart?" : "Restart Mariner"}
-          </button>
-
           <button
             onClick={() => handleAction("reboot")}
             className={cn(
@@ -98,6 +86,34 @@ export function PowerMenu() {
             <PowerOff className="h-4 w-4" />
             {confirming === "shutdown" ? "Confirm Shutdown?" : "Shut Down"}
           </button>
+
+          <button
+            onClick={() => handleAction("restart_service")}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
+              confirming === "restart_service"
+                ? "bg-destructive/10 font-medium text-destructive"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+            )}
+          >
+            <RefreshCw className="h-4 w-4" />
+            {confirming === "restart_service" ? "Confirm Restart?" : "Restart Mariner"}
+          </button>
+
+          <button
+            onClick={() => handleAction("restart_mediamtx")}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
+              confirming === "restart_mediamtx"
+                ? "bg-destructive/10 font-medium text-destructive"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+            )}
+          >
+            <RefreshCw className="h-4 w-4" />
+            {confirming === "restart_mediamtx" ? "Restart takes 10s.." : "Restart MediaMTX"}
+          </button>
+
+
         </div>
       </PopoverContent>
     </Popover>
