@@ -241,6 +241,10 @@ export const api = {
     await apiFetch("/api/host/restart_service", { method: "POST" });
   },
   
+  async hostRestartMediamtx(): Promise<void> {
+    await apiFetch("/api/host/restart_mediamtx", { method: "POST" });
+  },
+
   async timelapseListVideos(): Promise<TimelapseVideoEntry[]> {
     return apiFetch<TimelapseVideoEntry[]>("/api/timelapse/videos");
   },
