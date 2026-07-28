@@ -5,21 +5,21 @@ const statusConfig: Record<
   PrinterStatus,
   { label: string; dotClass: string; textClass: string }
 > = {
-  idle: { label: "Ready", dotClass: "bg-success", textClass: "text-success" },
+  idle: { label: "Ready", dotClass: "bg-green-900 animate-pulse-glow", textClass: "text-white" },
   printing: {
     label: "Printing",
-    dotClass: "bg-primary animate-pulse-glow",
-    textClass: "text-primary",
+    dotClass: "bg-green-400 animate-pulse-glow",
+    textClass: "text-green-500",
   },
   paused: {
     label: "Paused",
-    dotClass: "bg-warning",
-    textClass: "text-warning",
+    dotClass: "bg-amber-400 animate-pulse-glow",
+    textClass: "text-amber-400",
   },
   offline: {
     label: "Offline",
-    dotClass: "bg-destructive",
-    textClass: "text-destructive",
+    dotClass: "bg-grey-500",
+    textClass: "text-grey-500",
   },
 };
 
