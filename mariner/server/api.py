@@ -617,8 +617,8 @@ def host_restart_service() -> Union[str, Response]:
 @api.route("/host/restart_mediamtx", methods=["POST"])
 def host_restart_mediamtx() -> Union[str, Response]:
     logger.warning("MediaMTX service restart requested via API")
-    # Startet den mediamtx Dienst im Hintergrund neu
     subprocess.Popen(["sudo", "systemctl", "restart", "mediamtx.service"])
     return jsonify({"success": True})
+    
 
 
