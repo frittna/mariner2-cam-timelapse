@@ -609,6 +609,11 @@ def host_reboot() -> Union[str, Response]:
     subprocess.Popen(["reboot"])
     return jsonify({"success": True})
 
+@api.route("/host/restart_service", methods=["POST"])
+def host_restart_service() -> Union[str, Response]:
+    logger.warning("Mariner3D service restart requested via API")
+    subprocess.Popen(["sudo", "systemctl", "restart", "mariner3d.service"])
+    return jsonify({"success": True})
 
 
 
