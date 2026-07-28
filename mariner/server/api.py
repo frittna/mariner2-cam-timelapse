@@ -602,7 +602,6 @@ def host_shutdown() -> Union[str, Response]:
     subprocess.Popen(["shutdown", "-h", "now"])
     return jsonify({"success": True})
 
-
 @api.route("/host/reboot", methods=["POST"])
 def host_reboot() -> Union[str, Response]:
     logger.warning("Host reboot requested via API")
@@ -615,5 +614,11 @@ def host_restart_service() -> Union[str, Response]:
     subprocess.Popen(["sudo", "systemctl", "restart", "mariner3d.service"])
     return jsonify({"success": True})
 
+@api.route("/host/restart_mediamtx", methods=["POST"])
+def host_restart_mediamtx() -> Union[str, Response]:
+    logger.warning("MediaMTX service restart requested via API")
+    # Startet den mediamtx Dienst im Hintergrund neu
+    subprocess.Popen(["sudo", "systemctl", "restart", "mediamtx.service"])
+    return jsonify({"success": True})
 
 
