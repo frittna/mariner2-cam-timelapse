@@ -53,7 +53,7 @@ export function AppNav() {
             </div>
           )}
           <span className="font-display text-lg font-bold tracking-tight">
-            Mariner 2 Cam
+            Mariner
           </span>
         </div>
 
