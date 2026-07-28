@@ -168,6 +168,20 @@ export const themes: PrinterTheme[] = [
       "sidebar-ring": "224 64% 33%",
     },
   },
+  {
+    id: "xp-blue",
+    name: "Luna Blue",
+    accent: "#1d59d2",
+    vars: {
+      primary: "217 89% 51%",
+      "primary-foreground": "0 0% 100%",
+      accent: "217 89% 51%",
+      "accent-foreground": "0 0% 100%",
+      ring: "217 89% 51%",
+      "sidebar-primary": "217 89% 51%",
+      "sidebar-ring": "217 89% 51%",
+    },
+  },
 ];
 
 const THEME_KEY = "mariner-theme";
