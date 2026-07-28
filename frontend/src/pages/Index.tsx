@@ -323,7 +323,7 @@ return (
         boxShadow: camSize === 'HIDE' ? 'none' : '0 0 8px #22c55e',
         transition: 'background-color 0.3s'
       }} />
-      <span id="db-text">{camSize === 'HIDE' ? 'Camera: Off' : 'Camera: On'}</span>
+      <span id="db-text">{camSize === 'HIDE' ? 'CAM: OFF' : 'CAM: ON'}</span>
     </div>
 
     <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
