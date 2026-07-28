@@ -133,6 +133,6 @@ Healthy output should show:
 On the Pi, Mariner may run from the installed virtualenv package path instead of a checkout.
 If behavior differs from the repository files, verify which runtime file is active before debugging further.
 
-Recommended UV-bottom capture settings: offset 300 ms, event window 800 ms, timeout 5000 ms.
+Recommended UV-bottom capture settings: offset 300 ms, event window 400 ms, timeout 5000 ms.
 
 If buffered capture misses a frame deadline, Mariner falls back to a one-shot ffmpeg snapshot.
