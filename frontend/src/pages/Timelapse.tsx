@@ -501,7 +501,7 @@ export default function Timelapse() {
           <span className="font-medium">Last/Avg/Max:</span>{" "}
           {(status?.capture_duration_last_ms ?? 0).toFixed(0)}/{(status?.capture_duration_avg_ms ?? 0).toFixed(0)}/{(status?.capture_duration_max_ms ?? 0).toFixed(0)} ms
         </div>
-        <div className="text-sm">
+        <div className="text-sm break-words">
           <span className="font-medium">Session:</span> {status?.session_id ?? "none"}
           {status?.last_session_id ? ` | Last session: ${status.last_session_id}` : ""}
         </div>
