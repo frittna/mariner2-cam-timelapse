@@ -61,7 +61,7 @@ export function PowerMenu() {
           Host Power
         </p>
         <div className="space-y-0.5">
-          <button
+           <button
             onClick={() => handleAction("shutdown")}
             className={cn(
               "flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
@@ -70,7 +70,10 @@ export function PowerMenu() {
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
             )}
           >
-          
+            <PowerOff className="h-4 w-4" />
+            {confirming === "shutdown" ? "Confirm Shutdown?" : "Shut Down"}
+          </button>
+
           <button
             onClick={() => handleAction("reboot")}
             className={cn(
@@ -82,10 +85,6 @@ export function PowerMenu() {
           >
             <RotateCcw className="h-4 w-4" />
             {confirming === "reboot" ? "Confirm Reboot?" : "Reboot"}
-          </button>
-                    
-            <PowerOff className="h-4 w-4" />
-            {confirming === "shutdown" ? "Confirm Shutdown?" : "Shut Down"}
           </button>
 
           <button
